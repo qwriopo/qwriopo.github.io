@@ -2,17 +2,24 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>Drag & Slash Game</title>
+    <title>Drag & Slash V2</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #1a1a1a; font-family: sans-serif; }
+        body { margin: 0; overflow: hidden; background: #111; font-family: 'Apple SD Gothic Neo', sans-serif; }
         canvas { display: block; }
-        #ui { position: absolute; top: 20px; left: 20px; color: white; pointer-events: none; }
+        #ui { position: absolute; top: 20px; left: 20px; color: white; pointer-events: none; user-select: none; }
+        .gauge-container { width: 200px; height: 20px; background: #333; border: 2px solid #555; margin-top: 10px; position: relative; }
+        #energy-bar { width: 100%; height: 100%; background: #00ffcc; transition: width 0.1s; }
+        #slow-indicator { color: #ffcc00; font-weight: bold; display: none; margin-top: 5px; }
     </style>
 </head>
 <body>
     <div id="ui">
-        <h1>Drag & Slash</h1>
-        <p>마우스로 선을 그어 적을 처치하세요! (Score: <span id="score">0</span>)</p>
+        <div style="font-size: 24px;">Score: <span id="score">0</span></div>
+        <div class="gauge-container">
+            <div id="energy-bar"></div>
+        </div>
+        <div style="font-size: 12px; margin-top: 4px; color: #aaa;">ENERGY (Drag Distance)</div>
+        <div id="slow-indicator">SLOW MOTION ACTIVE</div>
     </div>
     <canvas id="gameCanvas"></canvas>
 
@@ -20,39 +27,52 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const scoreEl = document.getElementById('score');
+        const energyBar = document.getElementById('energy-bar');
+        const slowIndicator = document.getElementById('slow-indicator');
 
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
 
-        // 게임 상태
-        let player = { x: canvas.width/2, y: canvas.height/2, radius: 15, color: '#00ffcc', isMoving: false };
-        let enemies = [];
+        // 게임 밸런스 설정
+        const GAME_SPEED_NORMAL = 1.0;
+        const GAME_SPEED_SLOW = 0.15; // 슬로모션 배율
+        const ENERGY_REGEN = 0.3; // 초당 에너지 회복량 (0~100 기준)
+        const ENERGY_COST_MULT = 0.2; // 거리당 에너지 소모 배율
+
+        let timeScale = GAME_SPEED_NORMAL;
         let score = 0;
+        let energy = 100;
+
+        let player = { x: canvas.width/2, y: canvas.height/2, radius: 12, color: '#00ffcc', isMoving: false };
+        let enemies = [];
         let isDragging = false;
-        let dragStart = { x: 0, y: 0 };
         let dragEnd = { x: 0, y: 0 };
         let targetPos = { x: 0, y: 0 };
 
-        // 적 생성
         function spawnEnemy() {
-            const radius = 20;
+            const side = Math.floor(Math.random() * 4);
+            let x, y;
+            if(side === 0) { x = Math.random()*canvas.width; y = -20; }
+            else if(side === 1) { x = canvas.width+20; y = Math.random()*canvas.height; }
+            else if(side === 2) { x = Math.random()*canvas.width; y = canvas.height+20; }
+            else { x = -20; y = Math.random()*canvas.height; }
+
             enemies.push({
-                x: Math.random() * (canvas.width - radius * 2) + radius,
-                y: Math.random() * (canvas.height - radius * 2) + radius,
-                radius: radius,
-                color: '#ff4444'
+                x: x, y: y,
+                radius: 18,
+                color: '#ff4444',
+                speed: 1 + Math.random() * 1.5 // 적마다 속도가 다름
             });
         }
 
-        // 초기 적 5마리 생성
+        // 초기 적 생성
         for(let i=0; i<5; i++) spawnEnemy();
 
-        // 마우스 이벤트
         canvas.addEventListener('mousedown', (e) => {
-            if (player.isMoving) return;
+            if (player.isMoving || energy < 10) return;
             isDragging = true;
-            dragStart = { x: player.x, y: player.y };
-            dragEnd = { x: e.clientX, y: e.clientY };
+            timeScale = GAME_SPEED_SLOW;
+            slowIndicator.style.display = 'block';
         });
 
         canvas.addEventListener('mousemove', (e) => {
@@ -63,31 +83,60 @@
 
         canvas.addEventListener('mouseup', (e) => {
             if (!isDragging) return;
+            
+            // 거리 계산 및 에너지 체크
+            const dx = e.clientX - player.x;
+            const dy = e.clientY - player.y;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            const cost = dist * ENERGY_COST_MULT;
+
+            if (energy >= cost) {
+                energy -= cost;
+                targetPos = { x: e.clientX, y: e.clientY };
+                player.isMoving = true;
+            }
+
             isDragging = false;
-            player.isMoving = true;
-            targetPos = { x: e.clientX, y: e.clientY };
+            timeScale = GAME_SPEED_NORMAL;
+            slowIndicator.style.display = 'none';
         });
 
         function update() {
-            if (player.isMoving) {
-                // 선형 보간(Lerp)으로 플레이어 이동
-                const dx = targetPos.x - player.x;
-                const dy = targetPos.y - player.y;
-                const distance = Math.sqrt(dx*dx + dy*dy);
-                
-                if (distance > 5) {
-                    player.x += dx * 0.2; // 이동 속도 조절
-                    player.y += dy * 0.2;
+            // 에너지 자동 회복
+            if (!isDragging && energy < 100) {
+                energy = Math.min(100, energy + ENERGY_REGEN);
+            }
+            energyBar.style.width = energy + '%';
+            energyBar.style.background = energy < 20 ? '#ff4444' : '#00ffcc';
 
-                    // 이동 경로상의 적 충돌 확인
+            // 적 움직임 (슬로모션 영향 받음)
+            enemies.forEach(enemy => {
+                const edx = player.x - enemy.x;
+                const edy = player.y - enemy.y;
+                const dist = Math.sqrt(edx*edx + edy*edy);
+                enemy.x += (edx / dist) * enemy.speed * timeScale;
+                enemy.y += (edy / dist) * enemy.speed * timeScale;
+
+                // 적이 플레이어에게 닿으면 게임오버 처리 가능 (여기선 생략)
+            });
+
+            // 플레이어 돌진 이동
+            if (player.isMoving) {
+                const pdx = targetPos.x - player.x;
+                const pdy = targetPos.y - player.y;
+                const pdist = Math.sqrt(pdx*pdx + pdy*pdy);
+                
+                if (pdist > 5) {
+                    player.x += pdx * 0.25;
+                    player.y += pdy * 0.25;
+
+                    // 충돌 판정
                     enemies = enemies.filter(enemy => {
-                        const edx = enemy.x - player.x;
-                        const edy = enemy.y - player.y;
-                        const dist = Math.sqrt(edx*edx + edy*edy);
+                        const dist = Math.sqrt(Math.pow(enemy.x - player.x, 2) + Math.pow(enemy.y - player.y, 2));
                         if (dist < player.radius + enemy.radius) {
                             score += 10;
                             scoreEl.innerText = score;
-                            spawnEnemy(); // 적 처치 시 새로 생성
+                            if(enemies.length < 10) spawnEnemy();
                             return false;
                         }
                         return true;
@@ -101,18 +150,22 @@
         }
 
         function draw() {
-            ctx.fillStyle = 'rgba(26, 26, 26, 0.3)'; // 잔상 효과
+            ctx.fillStyle = 'rgba(17, 17, 17, 0.4)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // 가이드 라인 (드래그 중일 때)
+            // 가이드 라인 및 예상 소모 게이지 시각화
             if (isDragging) {
+                const dx = dragEnd.x - player.x;
+                const dy = dragEnd.y - player.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                const cost = dist * ENERGY_COST_MULT;
+
                 ctx.beginPath();
                 ctx.moveTo(player.x, player.y);
                 ctx.lineTo(dragEnd.x, dragEnd.y);
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-                ctx.setLineDash([5, 5]);
+                ctx.strokeStyle = cost > energy ? '#ff4444' : 'rgba(255, 255, 255, 0.8)';
+                ctx.lineWidth = 2;
                 ctx.stroke();
-                ctx.setLineDash([]);
             }
 
             // 적 그리기
@@ -121,17 +174,15 @@
                 ctx.arc(enemy.x, enemy.y, enemy.radius, 0, Math.PI*2);
                 ctx.fillStyle = enemy.color;
                 ctx.fill();
-                ctx.closePath();
             });
 
             // 플레이어 그리기
             ctx.beginPath();
             ctx.arc(player.x, player.y, player.radius, 0, Math.PI*2);
             ctx.fillStyle = player.color;
-            ctx.shadowBlur = 15;
+            ctx.shadowBlur = isDragging ? 20 : 10;
             ctx.shadowColor = player.color;
             ctx.fill();
-            ctx.closePath();
             ctx.shadowBlur = 0;
 
             update();
@@ -139,7 +190,12 @@
         }
 
         draw();
+
+        // 창 크기 조절 대응
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
     </script>
 </body>
 </html>
-

@@ -2,9 +2,9 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<title>Rope Action Prototype</title>
+<title>Rope Dash Prototype</title>
 <style>
-body { margin:0; overflow:hidden; background:#111; }
+body { margin:0; overflow:hidden; background:#0b0f14; }
 canvas { display:block; }
 </style>
 </head>
@@ -19,26 +19,28 @@ canvas.height = window.innerHeight;
 // 카메라
 let camera = { x:0, y:0 };
 
-// 플레이어
+// 플레이어 (조금 더 이쁜 스타일)
 let player = {
     x:200,
     y:200,
     vx:0,
     vy:0,
     radius:10,
-    onGround:false
+    onGround:false,
+    dash:false,
+    trail:[]
 };
 
-// 로프
+// 로프 (대상 지점만 사용)
 let rope = {
-    active:false,
+    aiming:false,
     x:0,
     y:0
 };
 
-// 간단한 지형
+// 지형
 let platforms = [
-    { x:0, y:500, w:2000, h:40 }, // 바닥
+    { x:0, y:500, w:2000, h:40 },
     { x:300, y:400, w:200, h:20 },
     { x:700, y:350, w:200, h:20 },
     { x:1100, y:300, w:200, h:20 }
@@ -49,42 +51,69 @@ let keys = {};
 document.addEventListener("keydown", e => keys[e.key] = true);
 document.addEventListener("keyup", e => keys[e.key] = false);
 
-// 로프 발사
+// 클릭 시작 (조준)
 canvas.addEventListener("mousedown", (e)=>{
-    rope.active = true;
+    rope.aiming = true;
     rope.x = e.clientX + camera.x;
     rope.y = e.clientY + camera.y;
 });
 
+// 드래그 (궤적 표시용)
+canvas.addEventListener("mousemove", (e)=>{
+    if(rope.aiming){
+        rope.x = e.clientX + camera.x;
+        rope.y = e.clientY + camera.y;
+    }
+});
+
+// 놓으면 대시
 canvas.addEventListener("mouseup", ()=>{
-    rope.active = false;
+    if(!rope.aiming) return;
+
+    let dx = rope.x - player.x;
+    let dy = rope.y - player.y;
+    let dist = Math.sqrt(dx*dx + dy*dy);
+
+    if(dist > 10){
+        player.vx = (dx/dist) * 25;
+        player.vy = (dy/dist) * 25;
+        player.dash = true;
+    }
+
+    rope.aiming = false;
 });
 
 function update(){
-    // 좌우 이동
-    if(keys["a"] || keys["ArrowLeft"]) player.vx = -4;
-    else if(keys["d"] || keys["ArrowRight"]) player.vx = 4;
-    else player.vx *= 0.8;
+    // 이동
+    if(!player.dash){
+        if(keys["a"] || keys["ArrowLeft"]) player.vx = -4;
+        else if(keys["d"] || keys["ArrowRight"]) player.vx = 4;
+        else player.vx *= 0.8;
 
-    // 점프
-    if((keys["w"] || keys["ArrowUp"] || keys[" "]) && player.onGround){
-        player.vy = -10;
-        player.onGround = false;
+        if((keys["w"] || keys["ArrowUp"] || keys[" "]) && player.onGround){
+            player.vy = -10;
+            player.onGround = false;
+        }
     }
 
     // 중력
     player.vy += 0.5;
 
-    // 로프 당기기
-    if(rope.active){
-        let dx = rope.x - player.x;
-        let dy = rope.y - player.y;
-        player.vx += dx * 0.01;
-        player.vy += dy * 0.01;
+    // 대시 중 감속
+    if(player.dash){
+        player.vx *= 0.95;
+        player.vy *= 0.95;
+        if(Math.abs(player.vx) < 1 && Math.abs(player.vy) < 1){
+            player.dash = false;
+        }
     }
 
     player.x += player.vx;
     player.y += player.vy;
+
+    // 트레일 기록
+    player.trail.push({x:player.x, y:player.y});
+    if(player.trail.length > 15) player.trail.shift();
 
     // 충돌
     player.onGround = false;
@@ -94,39 +123,54 @@ function update(){
                 player.y = p.y - player.radius;
                 player.vy = 0;
                 player.onGround = true;
+                player.dash = false;
             }
         }
     });
 
-    // 카메라 따라가기
+    // 카메라
     camera.x = player.x - canvas.width/2;
     camera.y = player.y - canvas.height/2;
 }
 
 function draw(){
-    ctx.fillStyle = "#111";
+    ctx.fillStyle = "#0b0f14";
     ctx.fillRect(0,0,canvas.width,canvas.height);
 
     // 지형
-    ctx.fillStyle = "#555";
+    ctx.fillStyle = "#1f2a38";
     platforms.forEach(p=>{
         ctx.fillRect(p.x - camera.x, p.y - camera.y, p.w, p.h);
     });
 
-    // 로프
-    if(rope.active){
+    // 궤적 (조준선)
+    if(rope.aiming){
         ctx.beginPath();
         ctx.moveTo(player.x - camera.x, player.y - camera.y);
         ctx.lineTo(rope.x - camera.x, rope.y - camera.y);
-        ctx.strokeStyle = "#fff";
+        ctx.strokeStyle = "rgba(255,255,255,0.6)";
+        ctx.lineWidth = 2;
         ctx.stroke();
     }
 
-    // 플레이어
+    // 트레일 이펙트
+    for(let i=0;i<player.trail.length;i++){
+        let t = player.trail[i];
+        let alpha = i / player.trail.length;
+        ctx.beginPath();
+        ctx.arc(t.x - camera.x, t.y - camera.y, player.radius * alpha, 0, Math.PI*2);
+        ctx.fillStyle = "rgba(0,255,200,"+alpha+")";
+        ctx.fill();
+    }
+
+    // 플레이어 (빛나는 느낌)
     ctx.beginPath();
     ctx.arc(player.x - camera.x, player.y - camera.y, player.radius, 0, Math.PI*2);
     ctx.fillStyle = "#00ffcc";
+    ctx.shadowBlur = 20;
+    ctx.shadowColor = "#00ffcc";
     ctx.fill();
+    ctx.shadowBlur = 0;
 
     update();
     requestAnimationFrame(draw);

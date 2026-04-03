@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<title>Rope Dash Prototype</title>
+<title>Rope Dash Improved Map</title>
 <style>
 body { margin:0; overflow:hidden; background:#0b0f14; }
 canvas { display:block; }
@@ -17,33 +17,92 @@ canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
 // 카메라
-let camera = { x:0, y:0 };
+let camera = { x:0, y:0, shake:0, zoom:1 };
 
-// 플레이어 (조금 더 이쁜 스타일)
+// 슬로우모션
+let slowMotion = false;
+let slowTimer = 0;
+const SLOW_DURATION = 60;
+
+// 충격파
+let shockwaves = [];
+
+// 플레이어
 let player = {
-    x:200,
-    y:200,
-    vx:0,
-    vy:0,
+    x:200, y:1000,
+    vx:0, vy:0,
     radius:10,
     onGround:false,
     dash:false,
-    trail:[]
+    trail:[],
+    canRope:true,
+
+    dashStartX:0,
+    dashStartY:0,
+    dashTargetX:0,
+    dashTargetY:0,
+    dashProgress:0
 };
 
-// 로프 (대상 지점만 사용)
-let rope = {
-    aiming:false,
-    x:0,
-    y:0
-};
+// 로프
+let rope = { aiming:false, x:0, y:0 };
 
-// 지형
+// 🔥 교체된 메트로배니아 맵
 let platforms = [
-    { x:0, y:500, w:2000, h:40 },
-    { x:300, y:400, w:200, h:20 },
-    { x:700, y:350, w:200, h:20 },
-    { x:1100, y:300, w:200, h:20 }
+
+    { x:-200, y:-200, w:5200, h:200 },
+    { x:-200, y:1400, w:5200, h:200 },
+    { x:-200, y:0, w:200, h:1400 },
+    { x:5000, y:0, w:200, h:1400 },
+
+    { x:0, y:1100, w:600, h:40 },
+    { x:200, y:1000, w:120, h:20 },
+    { x:350, y:900, w:120, h:20 },
+    { x:0, y:800, w:40, h:300 },
+
+    { x:600, y:1100, w:200, h:40 },
+    { x:750, y:1000, w:120, h:20 },
+    { x:650, y:900, w:120, h:20 },
+    { x:800, y:800, w:120, h:20 },
+    { x:700, y:700, w:120, h:20 },
+    { x:850, y:600, w:120, h:20 },
+    { x:950, y:550, w:40, h:600 },
+
+    { x:1000, y:1100, w:900, h:40 },
+    { x:1200, y:1000, w:200, h:20 },
+    { x:1500, y:900, w:200, h:20 },
+    { x:1800, y:800, w:200, h:20 },
+
+    { x:2100, y:1050, w:500, h:40 },
+    { x:2100, y:850, w:500, h:40 },
+    { x:2100, y:850, w:40, h:200 },
+    { x:2560, y:850, w:40, h:200 },
+
+    { x:2700, y:1100, w:500, h:40 },
+    { x:2800, y:1000, w:100, h:20 },
+    { x:3000, y:900, w:100, h:20 },
+    { x:3200, y:800, w:100, h:20 },
+    { x:3400, y:700, w:100, h:20 },
+
+    { x:3600, y:1100, w:600, h:40 },
+
+    { x:600, y:400, w:300, h:20 },
+    { x:1000, y:350, w:300, h:20 },
+    { x:1400, y:300, w:300, h:20 },
+    { x:1800, y:250, w:300, h:20 },
+    { x:2200, y:300, w:300, h:20 },
+
+    { x:2200, y:300, w:40, h:500 },
+    { x:1400, y:300, w:40, h:600 },
+
+    { x:4300, y:1100, w:600, h:40 },
+    { x:4400, y:1000, w:150, h:20 },
+    { x:4600, y:900, w:150, h:20 },
+    { x:4800, y:800, w:150, h:20 },
+
+    { x:5000, y:1100, w:800, h:40 },
+    { x:5200, y:950, w:200, h:20 },
+    { x:5500, y:900, w:200, h:20 }
 ];
 
 // 입력
@@ -51,14 +110,18 @@ let keys = {};
 document.addEventListener("keydown", e => keys[e.key] = true);
 document.addEventListener("keyup", e => keys[e.key] = false);
 
-// 클릭 시작 (조준)
+// 마우스
 canvas.addEventListener("mousedown", (e)=>{
+    if(!player.canRope) return;
+
     rope.aiming = true;
     rope.x = e.clientX + camera.x;
     rope.y = e.clientY + camera.y;
+
+    slowMotion = true;
+    slowTimer = SLOW_DURATION;
 });
 
-// 드래그 (궤적 표시용)
 canvas.addEventListener("mousemove", (e)=>{
     if(rope.aiming){
         rope.x = e.clientX + camera.x;
@@ -66,56 +129,87 @@ canvas.addEventListener("mousemove", (e)=>{
     }
 });
 
-// 놓으면 대시
 canvas.addEventListener("mouseup", ()=>{
-    if(!rope.aiming) return;
+    if(!rope.aiming || !player.canRope) return;
 
     let dx = rope.x - player.x;
     let dy = rope.y - player.y;
     let dist = Math.sqrt(dx*dx + dy*dy);
 
     if(dist > 10){
-        player.vx = (dx/dist) * 25;
-        player.vy = (dy/dist) * 25;
         player.dash = true;
+        player.canRope = false;
+
+        player.dashStartX = player.x;
+        player.dashStartY = player.y;
+        player.dashTargetX = rope.x;
+        player.dashTargetY = rope.y;
+        player.dashProgress = 0;
+
+        camera.shake = 5;
+        camera.zoom = 1.1;
     }
 
     rope.aiming = false;
+    slowMotion = false;
 });
 
+// 충돌
+function checkCollision(nx, ny){
+    for(let p of platforms){
+        if(nx > p.x && nx < p.x + p.w){
+            if(ny + player.radius > p.y && ny + player.radius < p.y + p.h){
+                return p;
+            }
+        }
+    }
+    return null;
+}
+
 function update(){
-    // 이동
-    if(!player.dash){
+    if(player.dash){
+        player.dashProgress += 0.12;
+
+        let t = player.dashProgress;
+        let ease = 1 - Math.pow(1 - t, 3);
+
+        let targetX = player.dashStartX + (player.dashTargetX - player.dashStartX) * ease;
+        let targetY = player.dashStartY + (player.dashTargetY - player.dashStartY) * ease;
+
+        let steps = 10;
+        let dx = (targetX - player.x) / steps;
+        let dy = (targetY - player.y) / steps;
+
+        for(let i=0;i<steps;i++){
+            let nx = player.x + dx;
+            let ny = player.y + dy;
+
+            let hit = checkCollision(nx, ny);
+            if(hit){
+                player.y = hit.y - player.radius;
+                player.dash = false;
+                return;
+            }
+
+            player.x = nx;
+            player.y = ny;
+        }
+
+    } else {
         if(keys["a"] || keys["ArrowLeft"]) player.vx = -4;
         else if(keys["d"] || keys["ArrowRight"]) player.vx = 4;
         else player.vx *= 0.8;
 
-        if((keys["w"] || keys["ArrowUp"] || keys[" "]) && player.onGround){
+        if((keys["w"] || keys[" "] || keys["ArrowUp"]) && player.onGround){
             player.vy = -10;
             player.onGround = false;
         }
+
+        player.vy += 0.5;
+        player.x += player.vx;
+        player.y += player.vy;
     }
 
-    // 중력
-    player.vy += 0.5;
-
-    // 대시 중 감속
-    if(player.dash){
-        player.vx *= 0.95;
-        player.vy *= 0.95;
-        if(Math.abs(player.vx) < 1 && Math.abs(player.vy) < 1){
-            player.dash = false;
-        }
-    }
-
-    player.x += player.vx;
-    player.y += player.vy;
-
-    // 트레일 기록
-    player.trail.push({x:player.x, y:player.y});
-    if(player.trail.length > 15) player.trail.shift();
-
-    // 충돌
     player.onGround = false;
     platforms.forEach(p=>{
         if(player.x > p.x && player.x < p.x + p.w){
@@ -123,12 +217,11 @@ function update(){
                 player.y = p.y - player.radius;
                 player.vy = 0;
                 player.onGround = true;
-                player.dash = false;
+                player.canRope = true;
             }
         }
     });
 
-    // 카메라
     camera.x = player.x - canvas.width/2;
     camera.y = player.y - canvas.height/2;
 }
@@ -137,51 +230,29 @@ function draw(){
     ctx.fillStyle = "#0b0f14";
     ctx.fillRect(0,0,canvas.width,canvas.height);
 
-    // 지형
     ctx.fillStyle = "#1f2a38";
     platforms.forEach(p=>{
         ctx.fillRect(p.x - camera.x, p.y - camera.y, p.w, p.h);
     });
 
-    // 궤적 (조준선)
     if(rope.aiming){
         ctx.beginPath();
         ctx.moveTo(player.x - camera.x, player.y - camera.y);
         ctx.lineTo(rope.x - camera.x, rope.y - camera.y);
-        ctx.strokeStyle = "rgba(255,255,255,0.6)";
-        ctx.lineWidth = 2;
+        ctx.strokeStyle = "white";
         ctx.stroke();
-    }
+    });
 
-    // 트레일 이펙트
-    for(let i=0;i<player.trail.length;i++){
-        let t = player.trail[i];
-        let alpha = i / player.trail.length;
-        ctx.beginPath();
-        ctx.arc(t.x - camera.x, t.y - camera.y, player.radius * alpha, 0, Math.PI*2);
-        ctx.fillStyle = "rgba(0,255,200,"+alpha+")";
-        ctx.fill();
-    }
-
-    // 플레이어 (빛나는 느낌)
     ctx.beginPath();
     ctx.arc(player.x - camera.x, player.y - camera.y, player.radius, 0, Math.PI*2);
     ctx.fillStyle = "#00ffcc";
-    ctx.shadowBlur = 20;
-    ctx.shadowColor = "#00ffcc";
     ctx.fill();
-    ctx.shadowBlur = 0;
 
     update();
     requestAnimationFrame(draw);
 }
 
 draw();
-
-window.addEventListener("resize", ()=>{
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-});
 </script>
 </body>
 </html>

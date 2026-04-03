@@ -29,7 +29,7 @@ let shockwaves = [];
 
 // 플레이어
 let player = {
-    x:200, y:1000,
+    x:200, y:200,
     vx:0, vy:0,
     radius:10,
     onGround:false,
@@ -47,60 +47,87 @@ let player = {
 // 로프
 let rope = { aiming:false, x:0, y:0 };
 
-// 🔥 교체된 메트로배니아 맵
 let platforms = [
 
-    { x:-200, y:-200, w:5200, h:200 },
-    { x:-200, y:1400, w:5200, h:200 },
-    { x:-200, y:0, w:200, h:1400 },
-    { x:5000, y:0, w:200, h:1400 },
+    // ===== 외곽 (맵 경계) =====
+    { x:-200, y:-200, w:5200, h:200 },   // 천장
+    { x:-200, y:1400, w:5200, h:200 },   // 바닥
+    { x:-200, y:0, w:200, h:1400 },      // 왼쪽 벽
+    { x:5000, y:0, w:200, h:1400 },      // 오른쪽 벽
 
+
+    // ===== 시작 구역 =====
     { x:0, y:1100, w:600, h:40 },
     { x:200, y:1000, w:120, h:20 },
     { x:350, y:900, w:120, h:20 },
+
+    // 왼쪽 막힘 (튜토리얼 느낌)
     { x:0, y:800, w:40, h:300 },
 
+
+    // ===== 수직 상승 구간 =====
     { x:600, y:1100, w:200, h:40 },
     { x:750, y:1000, w:120, h:20 },
     { x:650, y:900, w:120, h:20 },
     { x:800, y:800, w:120, h:20 },
     { x:700, y:700, w:120, h:20 },
     { x:850, y:600, w:120, h:20 },
+
+    // 오른쪽 벽 (막힘)
     { x:950, y:550, w:40, h:600 },
 
+
+    // ===== 메인 필드 =====
     { x:1000, y:1100, w:900, h:40 },
+
+    // 중간 장애물
     { x:1200, y:1000, w:200, h:20 },
     { x:1500, y:900, w:200, h:20 },
     { x:1800, y:800, w:200, h:20 },
 
+
+    // ===== 좁은 통로 =====
     { x:2100, y:1050, w:500, h:40 },
     { x:2100, y:850, w:500, h:40 },
     { x:2100, y:850, w:40, h:200 },
     { x:2560, y:850, w:40, h:200 },
 
+
+    // ===== 점프 퍼즐 구간 =====
     { x:2700, y:1100, w:500, h:40 },
     { x:2800, y:1000, w:100, h:20 },
     { x:3000, y:900, w:100, h:20 },
     { x:3200, y:800, w:100, h:20 },
     { x:3400, y:700, w:100, h:20 },
 
+
+    // ===== 중간 휴식 구간 =====
     { x:3600, y:1100, w:600, h:40 },
 
+
+    // ===== 상층 루트 (숨겨진 길) =====
     { x:600, y:400, w:300, h:20 },
     { x:1000, y:350, w:300, h:20 },
     { x:1400, y:300, w:300, h:20 },
     { x:1800, y:250, w:300, h:20 },
     { x:2200, y:300, w:300, h:20 },
 
+    // 상층 연결 기둥
     { x:2200, y:300, w:40, h:500 },
     { x:1400, y:300, w:40, h:600 },
 
+
+    // ===== 후반 상승 구간 =====
     { x:4300, y:1100, w:600, h:40 },
     { x:4400, y:1000, w:150, h:20 },
     { x:4600, y:900, w:150, h:20 },
     { x:4800, y:800, w:150, h:20 },
 
+
+    // ===== 최종 구역 (넓은 공간) =====
     { x:5000, y:1100, w:800, h:40 },
+
+    // 장식/구조물 느낌
     { x:5200, y:950, w:200, h:20 },
     { x:5500, y:900, w:200, h:20 }
 ];
@@ -146,7 +173,7 @@ canvas.addEventListener("mouseup", ()=>{
         player.dashTargetY = rope.y;
         player.dashProgress = 0;
 
-        camera.shake = 5;
+        camera.shake = 5; // 🔥 줄임
         camera.zoom = 1.1;
     }
 
@@ -188,11 +215,22 @@ function update(){
             if(hit){
                 player.y = hit.y - player.radius;
                 player.dash = false;
+
+                shockwaves.push({x:player.x,y:player.y,radius:0,alpha:1});
+                camera.shake = 8;
                 return;
             }
 
             player.x = nx;
             player.y = ny;
+        }
+
+        player.trail.push({x:player.x,y:player.y,strong:true});
+
+        if(player.dashProgress >= 1){
+            player.dash = false;
+            shockwaves.push({x:player.x,y:player.y,radius:0,alpha:1});
+            camera.shake = 8;
         }
 
     } else {
@@ -210,6 +248,9 @@ function update(){
         player.y += player.vy;
     }
 
+    player.trail.push({x:player.x,y:player.y});
+    if(player.trail.length > 30) player.trail.shift();
+
     player.onGround = false;
     platforms.forEach(p=>{
         if(player.x > p.x && player.x < p.x + p.w){
@@ -222,17 +263,31 @@ function update(){
         }
     });
 
+    camera.shake *= 0.85; // 더 빨리 줄어듦
+    camera.zoom += (1 - camera.zoom) * 0.1;
+
     camera.x = player.x - canvas.width/2;
     camera.y = player.y - canvas.height/2;
+
+    shockwaves.forEach(s=>{
+        s.radius += 6;
+        s.alpha *= 0.9;
+    });
+    shockwaves = shockwaves.filter(s=>s.alpha > 0.05);
 }
 
 function draw(){
+    ctx.setTransform(camera.zoom,0,0,camera.zoom,0,0);
+
+    let shakeX = (Math.random()-0.5) * camera.shake;
+    let shakeY = (Math.random()-0.5) * camera.shake;
+
     ctx.fillStyle = "#0b0f14";
     ctx.fillRect(0,0,canvas.width,canvas.height);
 
     ctx.fillStyle = "#1f2a38";
     platforms.forEach(p=>{
-        ctx.fillRect(p.x - camera.x, p.y - camera.y, p.w, p.h);
+        ctx.fillRect(p.x - camera.x + shakeX, p.y - camera.y + shakeY, p.w, p.h);
     });
 
     if(rope.aiming){
@@ -241,18 +296,46 @@ function draw(){
         ctx.lineTo(rope.x - camera.x, rope.y - camera.y);
         ctx.strokeStyle = "white";
         ctx.stroke();
+    }
+
+    player.trail.forEach((t,i)=>{
+        let alpha = i/player.trail.length;
+        let size = t.strong ? player.radius*1.5 : player.radius*alpha;
+
+        ctx.beginPath();
+        ctx.arc(t.x - camera.x, t.y - camera.y, size, 0, Math.PI*2);
+        ctx.fillStyle = "rgba(0,255,200,"+alpha+")";
+        ctx.fill();
+    });
+
+    shockwaves.forEach(s=>{
+        ctx.beginPath();
+        ctx.arc(s.x - camera.x, s.y - camera.y, s.radius, 0, Math.PI*2);
+        ctx.strokeStyle = "rgba(0,255,200,"+s.alpha+")";
+        ctx.lineWidth = 3;
+        ctx.stroke();
     });
 
     ctx.beginPath();
     ctx.arc(player.x - camera.x, player.y - camera.y, player.radius, 0, Math.PI*2);
     ctx.fillStyle = "#00ffcc";
+    ctx.shadowBlur = 20;
+    ctx.shadowColor = "#00ffcc";
     ctx.fill();
+    ctx.shadowBlur = 0;
+
+    ctx.setTransform(1,0,0,1,0,0);
 
     update();
     requestAnimationFrame(draw);
 }
 
 draw();
+
+window.addEventListener("resize", ()=>{
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+});
 </script>
 </body>
 </html>

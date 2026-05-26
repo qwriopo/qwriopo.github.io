@@ -1,350 +1,575 @@
+```html
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8">
-<title>Rope Dash Improved Map</title>
-<style>
-body { margin:0; overflow:hidden; background:#0b0f14; }
-canvas { display:block; }
-</style>
+    <meta charset="UTF-8">
+    <title>Neon Requiem - Prototype</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: #05050a;
+            color: #fff;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+        #gameTitle {
+            font-size: 24px;
+            color: #00ffff;
+            text-shadow: 0 0 10px #00ffff, 0 0 20px #ff00ff;
+            margin-bottom: 10px;
+        }
+        canvas {
+            border: 4px solid #3d0066;
+            box-shadow: 0 0 30px #240046;
+            background-color: #0a0a14;
+            cursor: crosshair;
+        }
+        #controls {
+            margin-top: 15px;
+            font-size: 12px;
+            color: #888;
+            text-align: center;
+            line-height: 1.6;
+        }
+    </style>
 </head>
 <body>
-<canvas id="gameCanvas"></canvas>
+
+    <div id="gameTitle">《Neon Requiem》 Prototype</div>
+    <canvas id="gameCanvas" width="960" height="540"></canvas>
+    <div id="controls">
+        [이동] WASD | [대시] Space | [기본공격] 마우스 좌클릭<br>
+        [스킬] Q: 원형 베기 | E: 붕괴 돌진 | R: 기억 폭발 | F: 기억 붕괴 (궁극기)
+    </div>
+
 <script>
-const canvas = document.getElementById("gameCanvas");
-const ctx = canvas.getContext("2d");
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
 
-// 카메라
-let camera = { x:0, y:0, shake:0, zoom:1 };
-
-// 슬로우모션
-let slowMotion = false;
-let slowTimer = 0;
-const SLOW_DURATION = 60;
-
-// 충격파
-let shockwaves = [];
-
-// 플레이어
-let player = {
-    x:200, y:200,
-    vx:0, vy:0,
-    radius:10,
-    onGround:false,
-    dash:false,
-    trail:[],
-    canRope:true,
-
-    dashStartX:0,
-    dashStartY:0,
-    dashTargetX:0,
-    dashTargetY:0,
-    dashProgress:0
+// --- 게임 상태 및 환경 설정 ---
+const game = {
+    flashTime: 0,
+    shakeTime: 0,
+    shakeIntensity: 0,
+    score: 0
 };
 
-// 로프
-let rope = { aiming:false, x:0, y:0 };
+// --- 입력 처리 ---
+const keys = {};
+const mouse = { x: 0, y: 0 };
 
-// ===== 맵 (그대로 유지) =====
-let platforms = [
-    { x:-200, y:-200, w:5200, h:200 },
-    { x:-200, y:1400, w:5200, h:200 },
-    { x:-200, y:0, w:200, h:1400 },
-    { x:5000, y:0, w:200, h:1400 },
-
-    { x:0, y:1100, w:600, h:40 },
-    { x:200, y:1000, w:120, h:20 },
-    { x:350, y:900, w:120, h:20 },
-
-    { x:0, y:800, w:40, h:300 },
-
-    { x:600, y:1100, w:200, h:40 },
-    { x:750, y:1000, w:120, h:20 },
-    { x:650, y:900, w:120, h:20 },
-    { x:800, y:800, w:120, h:20 },
-    { x:700, y:700, w:120, h:20 },
-    { x:850, y:600, w:120, h:20 },
-
-    { x:950, y:550, w:40, h:600 },
-
-    { x:1000, y:1100, w:900, h:40 },
-    { x:1200, y:1000, w:200, h:20 },
-    { x:1500, y:900, w:200, h:20 },
-    { x:1800, y:800, w:200, h:20 },
-
-    { x:2100, y:1050, w:500, h:40 },
-    { x:2100, y:850, w:500, h:40 },
-    { x:2100, y:850, w:40, h:200 },
-    { x:2560, y:850, w:40, h:200 },
-
-    { x:2700, y:1100, w:500, h:40 },
-    { x:2800, y:1000, w:100, h:20 },
-    { x:3000, y:900, w:100, h:20 },
-    { x:3200, y:800, w:100, h:20 },
-    { x:3400, y:700, w:100, h:20 },
-
-    { x:3600, y:1100, w:600, h:40 },
-
-    { x:600, y:400, w:300, h:20 },
-    { x:1000, y:350, w:300, h:20 },
-    { x:1400, y:300, w:300, h:20 },
-    { x:1800, y:250, w:300, h:20 },
-    { x:2200, y:300, w:300, h:20 },
-
-    { x:2200, y:300, w:40, h:500 },
-    { x:1400, y:300, w:40, h:600 },
-
-    { x:4300, y:1100, w:600, h:40 },
-    { x:4400, y:1000, w:150, h:20 },
-    { x:4600, y:900, w:150, h:20 },
-    { x:4800, y:800, w:150, h:20 },
-
-    { x:5000, y:1100, w:800, h:40 },
-    { x:5200, y:950, w:200, h:20 },
-    { x:5500, y:900, w:200, h:20 }
-];
-
-// 입력
-let keys = {};
-document.addEventListener("keydown", e => keys[e.key] = true);
-document.addEventListener("keyup", e => keys[e.key] = false);
-
-// 마우스
-canvas.addEventListener("mousedown", (e)=>{
-    if(!player.canRope) return;
-
-    rope.aiming = true;
-    rope.x = e.clientX + camera.x;
-    rope.y = e.clientY + camera.y;
-
-    slowMotion = true;
-    slowTimer = SLOW_DURATION;
+window.addEventListener('keydown', e => { keys[e.key.toLowerCase()] = true; handleSkillInput(e.key.toLowerCase()); });
+window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+canvas.addEventListener('mousemove', e => {
+    const rect = canvas.getBoundingClientRect();
+    mouse.x = e.clientX - rect.left;
+    mouse.y = e.clientY - rect.top;
+});
+canvas.addEventListener('mousedown', e => {
+    if (e.button === 0) triggerBasicAttack();
 });
 
-canvas.addEventListener("mousemove", (e)=>{
-    if(rope.aiming){
-        rope.x = e.clientX + camera.x;
-        rope.y = e.clientY + camera.y;
+// --- 플레이어 객체 ---
+const player = {
+    x: canvas.width / 2,
+    y: canvas.height / 2,
+    radius: 16,
+    speed: 4,
+    hp: 100,
+    maxHp: 100,
+    energy: 100,
+    maxEnergy: 100,
+    // 대시 및 상태
+    isDashing: false,
+    dashTimer: 0,
+    dashCooldown: 0,
+    dashDir: { x: 0, y: 0 },
+    // 스킬 쿨타임
+    cooldowns: { q: 0, e: 0, r: 0, f: 0 }
+};
+
+// --- 배열 관리 ---
+let enemies = [];
+let particles = [];
+let skillEffects = [];
+
+// --- 이펙트 & 파티클 스폰 함수 ---
+function spawnParticle(x, y, color, count = 5) {
+    for(let i=0; i<count; i++) {
+        particles.push({
+            x: x, y: y,
+            vx: (Math.random() - 0.5) * 6,
+            vy: (Math.random() - 0.5) * 6,
+            radius: Math.random() * 3 + 1,
+            color: color,
+            alpha: 1,
+            life: Math.random() * 20 + 10
+        });
     }
-});
-
-canvas.addEventListener("mouseup", ()=>{
-    if(!rope.aiming || !player.canRope) return;
-
-    let dx = rope.x - player.x;
-    let dy = rope.y - player.y;
-    let dist = Math.sqrt(dx*dx + dy*dy);
-
-    if(dist > 10){
-        player.dash = true;
-        player.canRope = false;
-
-        player.dashStartX = player.x;
-        player.dashStartY = player.y;
-        player.dashTargetX = rope.x;
-        player.dashTargetY = rope.y;
-        player.dashProgress = 0;
-
-        camera.shake = 5;
-        camera.zoom = 1.1;
-    }
-
-    rope.aiming = false;
-    slowMotion = false;
-});
-
-// 충돌 체크 (대시용)
-function checkCollision(nx, ny){
-    for(let p of platforms){
-        if(nx > p.x && nx < p.x + p.w){
-            if(ny + player.radius > p.y && ny + player.radius < p.y + p.h){
-                return p;
-            }
-        }
-    }
-    return null;
 }
 
-function update(){
+function screenShake(duration, intensity) {
+    game.shakeTime = duration;
+    game.shakeIntensity = intensity;
+}
 
-    // ===== 대시 =====
-    if(player.dash){
-        player.dashProgress += 0.12;
+// --- 전투 로직 (입력 대응) ---
+function triggerBasicAttack() {
+    // 마우스 방향 계산
+    const dx = mouse.x - player.x;
+    const dy = mouse.y - player.y;
+    const angle = Math.atan2(dy, dx);
+    
+    skillEffects.push({
+        type: 'slash',
+        x: player.x, y: player.y,
+        angle: angle, radius: 50,
+        color: '#ff0055', duration: 10, maxDuration: 10
+    });
+    
+    // 공격 판정
+    checkHit(player.x + Math.cos(angle)*30, player.y + Math.sin(angle)*30, 40, 15);
+}
 
-        let t = player.dashProgress;
-        let ease = 1 - Math.pow(1 - t, 3);
+function handleSkillInput(key) {
+    if (player.isDashing) return;
 
-        let targetX = player.dashStartX + (player.dashTargetX - player.dashStartX) * ease;
-        let targetY = player.dashStartY + (player.dashTargetY - player.dashStartY) * ease;
-
-        let steps = 10;
-        let dx = (targetX - player.x) / steps;
-        let dy = (targetY - player.y) / steps;
-
-        for(let i=0;i<steps;i++){
-            let nx = player.x + dx;
-            let ny = player.y + dy;
-
-            let hit = checkCollision(nx, ny);
-            if(hit){
-                player.y = hit.y - player.radius;
-                player.dash = false;
-
-                shockwaves.push({x:player.x,y:player.y,radius:0,alpha:1});
-                camera.shake = 8;
-                return;
-            }
-
-            player.x = nx;
-            player.y = ny;
+    if (key === ' ' && player.dashCooldown <= 0) {
+        // 대시 발동 (현재 입력 방향, 없으면 마우스 방향)
+        let dx = 0, dy = 0;
+        if (keys['w']) dy = -1; if (keys['s']) dy = 1;
+        if (keys['a']) dx = -1; if (keys['d']) dx = 1;
+        
+        if (dx === 0 && dy === 0) {
+            const angle = Math.atan2(mouse.y - player.y, mouse.x - player.x);
+            dx = Math.cos(angle); dy = Math.sin(angle);
         }
+        
+        const len = Math.sqrt(dx*dx + dy*dy);
+        player.dashDir = { x: dx/len, y: dy/len };
+        player.isDashing = true;
+        player.dashTimer = 10; // 10프레임 동안 대시
+        player.dashCooldown = 40;
+    }
+    
+    // Q: 원형 베기
+    if (key === 'q' && player.cooldowns.q <= 0) {
+        player.cooldowns.q = 60;
+        skillEffects.push({ type: 'circle', x: player.x, y: player.y, radius: 10, maxRadius: 100, color: '#00ffff', duration: 15, maxDuration: 15 });
+        checkHit(player.x, player.y, 100, 30);
+        screenShake(10, 3);
+    }
+    // E: 붕괴 돌진
+    if (key === 'e' && player.cooldowns.e <= 0) {
+        player.cooldowns.e = 90;
+        const angle = Math.atan2(mouse.y - player.y, mouse.x - player.x);
+        const targetX = player.x + Math.cos(angle) * 150;
+        const targetY = player.y + Math.sin(angle) * 150;
+        
+        skillEffects.push({ type: 'line', x1: player.x, y1: player.y, x2: targetX, y2: targetY, color: '#ff00ff', duration: 12, maxDuration: 12 });
+        
+        // 플레이어 순간이동 및 경로 판정
+        player.x = Math.max(20, Math.min(canvas.width - 20, targetX));
+        player.y = Math.max(20, Math.min(canvas.height - 20, targetY));
+        checkHit(player.x, player.y, 80, 40);
+        screenShake(12, 4);
+    }
+    // R: 기억 폭발
+    if (key === 'r' && player.cooldowns.r <= 0) {
+        player.cooldowns.r = 120;
+        const tx = mouse.x; const ty = mouse.y;
+        skillEffects.push({ type: 'bomb', x: tx, y: ty, radius: 60, delay: 20, color: '#9900ff', duration: 35, maxDuration: 35, exploded: false });
+    }
+    // F: 궁극기 (기억 붕괴)
+    if (key === 'f' && player.cooldowns.f <= 0 && player.energy >= 100) {
+        player.energy = 0;
+        player.cooldowns.f = 300;
+        game.flashTime = 10;
+        screenShake(30, 12);
+        
+        skillEffects.push({ type: 'ultimate', x: player.x, y: player.y, radius: 10, maxRadius: 600, color: '#6600ff', duration: 30, maxDuration: 30 });
+        
+        enemies.forEach(e => {
+            e.hp -= 100;
+            spawnParticle(e.x, e.y, '#9900ff', 15);
+        });
+    }
+}
 
-        player.trail.push({x:player.x,y:player.y,strong:true});
-
-        if(player.dashProgress >= 1){
-            player.dash = false;
-            shockwaves.push({x:player.x,y:player.y,radius:0,alpha:1});
-            camera.shake = 8;
+function checkHit(x, y, range, damage) {
+    enemies.forEach(e => {
+        const dist = Math.hypot(e.x - x, e.y - y);
+        if (dist < range + e.radius) {
+            e.hp -= damage;
+            e.x += (e.x - player.x) * 0.2;
+            e.y += (e.y - player.y) * 0.2;
+            spawnParticle(e.x, e.y, '#ff0055', 6);
+            player.energy = Math.min(player.maxEnergy, player.energy + 2);
         }
+    });
+}
 
+// --- 적 스폰 및 AI ---
+function spawnEnemy() {
+    if (enemies.length < 8) {
+        const side = Math.floor(Math.random() * 4);
+        let x, y;
+        if(side===0) { x = Math.random()*canvas.width; y = -20; }
+        else if(side===1) { x = canvas.width+20; y = Math.random()*canvas.height; }
+        else if(side===2) { x = Math.random()*canvas.width; y = canvas.height+20; }
+        else { x = -20; y = Math.random()*canvas.height; }
+
+        const type = Math.random() > 0.4 ? 'cultist' : 'ghost';
+        enemies.push({
+            x: x, y: y,
+            radius: type === 'cultist' ? 14 : 12,
+            speed: type === 'cultist' ? 1.8 : 2.5,
+            hp: type === 'cultist' ? 40 : 20,
+            maxHp: type === 'cultist' ? 40 : 20,
+            color: type === 'cultist' ? '#ff3333' : '#00ffcc',
+            type: type
+        });
+    }
+}
+setInterval(spawnEnemy, 2000);
+
+// --- 메인 업데이트 루프 ---
+function update() {
+    if (player.isDashing) {
+        player.x += player.dashDir.x * 14;
+        player.y += player.dashDir.y * 14;
+
+        player.x = Math.max(player.radius, Math.min(canvas.width - player.radius, player.x));
+        player.y = Math.max(player.radius, Math.min(canvas.height - player.radius, player.y));
+
+        particles.push({
+            x: player.x,
+            y: player.y,
+            vx: 0,
+            vy: 0,
+            radius: player.radius,
+            color: '#00ffff',
+            alpha: 0.4,
+            life: 8
+        });
+
+        player.dashTimer--;
+        if (player.dashTimer <= 0) player.isDashing = false;
     } else {
-        if(keys["a"] || keys["ArrowLeft"]) player.vx = -4;
-        else if(keys["d"] || keys["ArrowRight"]) player.vx = 4;
-        else player.vx *= 0.8;
+        let mx = 0, my = 0;
+        if (keys['w']) my = -1;
+        if (keys['s']) my = 1;
+        if (keys['a']) mx = -1;
+        if (keys['d']) mx = 1;
 
-        if((keys["w"] || keys[" "] || keys["ArrowUp"]) && player.onGround){
-            player.vy = -10;
-            player.onGround = false;
+        if (mx !== 0 && my !== 0) {
+            mx *= 0.707;
+            my *= 0.707;
         }
 
-        player.vy += 0.5;
-        player.x += player.vx;
-        player.y += player.vy;
+        player.x += mx * player.speed;
+        player.y += my * player.speed;
+
+        player.x = Math.max(player.radius, Math.min(canvas.width - player.radius, player.x));
+        player.y = Math.max(player.radius, Math.min(canvas.height - player.radius, player.y));
     }
 
-    player.trail.push({x:player.x,y:player.y});
-    if(player.trail.length > 30) player.trail.shift();
+    if (player.dashCooldown > 0) player.dashCooldown--;
 
-    player.onGround = false;
+    for (let k in player.cooldowns) {
+        if (player.cooldowns[k] > 0) player.cooldowns[k]--;
+    }
 
-    // ===== Y축 충돌 =====
-    platforms.forEach(p=>{
-        let prevY = player.y - player.vy;
+    enemies.forEach((e, idx) => {
+        const dx = player.x - e.x;
+        const dy = player.y - e.y;
+        const dist = Math.hypot(dx, dy);
 
-        if(prevY + player.radius <= p.y){
-            if(player.x > p.x && player.x < p.x + p.w){
-                if(player.y + player.radius > p.y){
-                    player.y = p.y - player.radius;
-                    player.vy = 0;
-                    player.onGround = true;
-                    player.canRope = true;
-                }
-            }
+        e.x += (dx / dist) * e.speed;
+        e.y += (dy / dist) * e.speed;
+
+        if (dist < player.radius + e.radius && !player.isDashing) {
+            player.hp -= 0.3;
+            spawnParticle(player.x, player.y, '#ff0055', 1);
+            screenShake(3, 1);
         }
 
-        if(prevY - player.radius >= p.y + p.h){
-            if(player.x > p.x && player.x < p.x + p.w){
-                if(player.y - player.radius < p.y + p.h){
-                    player.y = p.y + p.h + player.radius;
-                    player.vy = 0;
-                }
-            }
+        if (e.hp <= 0) {
+            spawnParticle(e.x, e.y, e.color, 12);
+            game.score += e.type === 'cultist' ? 100 : 150;
+            enemies.splice(idx, 1);
         }
     });
 
-    // ===== X축 충돌 =====
-    platforms.forEach(p=>{
-        let prevX = player.x - player.vx;
+    skillEffects.forEach((eff, idx) => {
+        eff.duration--;
 
-        if(player.y > p.y && player.y < p.y + p.h){
-
-            if(prevX <= p.x && player.x > p.x){
-                player.x = p.x - player.radius;
-                player.vx = 0;
-            }
-
-            if(prevX >= p.x + p.w && player.x < p.x + p.w){
-                player.x = p.x + p.w + player.radius;
-                player.vx = 0;
+        if (eff.type === 'bomb' && !eff.exploded) {
+            if (eff.duration <= eff.maxDuration - eff.delay) {
+                eff.exploded = true;
+                checkHit(eff.x, eff.y, eff.radius, 50);
+                screenShake(15, 6);
+                spawnParticle(eff.x, eff.y, '#9900ff', 20);
             }
         }
+
+        if (eff.duration <= 0) skillEffects.splice(idx, 1);
     });
 
-    camera.shake *= 0.85;
-    camera.zoom += (1 - camera.zoom) * 0.1;
+    particles.forEach((p, idx) => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life--;
+        p.alpha = p.life / 30;
 
-    camera.x = player.x - canvas.width/2;
-    camera.y = player.y - canvas.height/2;
-
-    shockwaves.forEach(s=>{
-        s.radius += 6;
-        s.alpha *= 0.9;
+        if (p.life <= 0) particles.splice(idx, 1);
     });
-    shockwaves = shockwaves.filter(s=>s.alpha > 0.05);
+
+    if (game.shakeTime > 0) game.shakeTime--;
+    if (game.flashTime > 0) game.flashTime--;
+
+    if (player.hp <= 0) {
+        alert(`기억 오염으로 붕괴되었습니다. 최종 점수: ${game.score}`);
+        player.hp = 100;
+        player.energy = 100;
+        game.score = 0;
+        enemies = [];
+        skillEffects = [];
+    }
 }
 
-function draw(){
-    ctx.setTransform(camera.zoom,0,0,camera.zoom,0,0);
+// --- 메인 렌더링 루프 ---
+function draw() {
+    ctx.save();
 
-    let shakeX = (Math.random()-0.5) * camera.shake;
-    let shakeY = (Math.random()-0.5) * camera.shake;
+    if (game.shakeTime > 0) {
+        const dx = (Math.random() - 0.5) * game.shakeIntensity;
+        const dy = (Math.random() - 0.5) * game.shakeIntensity;
+        ctx.translate(dx, dy);
+    }
 
-    ctx.fillStyle = "#0b0f14";
-    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle = '#0a0a14';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    ctx.fillStyle = "#1f2a38";
-    platforms.forEach(p=>{
-        ctx.fillRect(p.x - camera.x + shakeX, p.y - camera.y + shakeY, p.w, p.h);
-    });
+    ctx.strokeStyle = '#141428';
+    ctx.lineWidth = 1;
 
-    if(rope.aiming){
+    for(let i=0; i<canvas.width; i+=40) {
         ctx.beginPath();
-        ctx.moveTo(player.x - camera.x, player.y - camera.y);
-        ctx.lineTo(rope.x - camera.x, rope.y - camera.y);
-        ctx.strokeStyle = "white";
+        ctx.moveTo(i, 0);
+        ctx.lineTo(i, canvas.height);
         ctx.stroke();
     }
 
-    player.trail.forEach((t,i)=>{
-        let alpha = i/player.trail.length;
-        let size = t.strong ? player.radius*1.5 : player.radius*alpha;
+    for(let j=0; j<canvas.height; j+=40) {
+        ctx.beginPath();
+        ctx.moveTo(0, j);
+        ctx.lineTo(canvas.width, j);
+        ctx.stroke();
+    }
+
+    ctx.shadowBlur = 10;
+
+    particles.forEach(p => {
+        ctx.globalAlpha = p.alpha;
+        ctx.fillStyle = p.color;
+        ctx.shadowColor = p.color;
 
         ctx.beginPath();
-        ctx.arc(t.x - camera.x, t.y - camera.y, size, 0, Math.PI*2);
-        ctx.fillStyle = "rgba(0,255,200,"+alpha+")";
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2);
         ctx.fill();
     });
 
-    shockwaves.forEach(s=>{
-        ctx.beginPath();
-        ctx.arc(s.x - camera.x, s.y - camera.y, s.radius, 0, Math.PI*2);
-        ctx.strokeStyle = "rgba(0,255,200,"+s.alpha+")";
-        ctx.lineWidth = 3;
-        ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    skillEffects.forEach(eff => {
+        ctx.strokeStyle = eff.color;
+        ctx.shadowColor = eff.color;
+        ctx.fillStyle = eff.color;
+
+        if (eff.type === 'slash') {
+            ctx.lineWidth = 4;
+
+            ctx.beginPath();
+            ctx.arc(eff.x, eff.y, eff.radius, eff.angle - 1, eff.angle + 1);
+            ctx.stroke();
+        }
+
+        else if (eff.type === 'circle') {
+            ctx.lineWidth = 6;
+            const currentRadius = eff.maxRadius * (1 - eff.duration / eff.maxDuration);
+
+            ctx.beginPath();
+            ctx.arc(eff.x, eff.y, currentRadius, 0, Math.PI*2);
+            ctx.stroke();
+        }
+
+        else if (eff.type === 'line') {
+            ctx.lineWidth = 8 * (eff.duration / eff.maxDuration);
+
+            ctx.beginPath();
+            ctx.moveTo(eff.x1, eff.y1);
+            ctx.lineTo(eff.x2, eff.y2);
+            ctx.stroke();
+        }
+
+        else if (eff.type === 'bomb') {
+            if (!eff.exploded) {
+                ctx.lineWidth = 2;
+                ctx.globalAlpha = 0.3 + 0.4 * Math.sin(eff.duration);
+
+                ctx.beginPath();
+                ctx.arc(eff.x, eff.y, eff.radius, 0, Math.PI*2);
+                ctx.fill();
+            } else {
+                ctx.lineWidth = 5 * (eff.duration / eff.maxDuration);
+
+                ctx.beginPath();
+                ctx.arc(
+                    eff.x,
+                    eff.y,
+                    eff.radius * (1 - eff.duration/eff.maxDuration),
+                    0,
+                    Math.PI*2
+                );
+                ctx.stroke();
+            }
+
+            ctx.globalAlpha = 1;
+        }
+
+        else if (eff.type === 'ultimate') {
+            ctx.lineWidth = 15;
+
+            const curR = eff.maxRadius * (1 - eff.duration / eff.maxDuration);
+
+            ctx.beginPath();
+            ctx.arc(eff.x, eff.y, curR, 0, Math.PI*2);
+            ctx.stroke();
+        }
     });
 
+    enemies.forEach(e => {
+        ctx.fillStyle = '#000000';
+        ctx.strokeStyle = e.color;
+        ctx.shadowColor = e.color;
+        ctx.lineWidth = 3;
+        ctx.shadowBlur = 12;
+
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, e.radius, 0, Math.PI*2);
+        ctx.fill();
+        ctx.stroke();
+
+        if(e.hp < e.maxHp) {
+            ctx.shadowBlur = 0;
+
+            ctx.fillStyle = '#222';
+            ctx.fillRect(e.x - 15, e.y - e.radius - 8, 30, 4);
+
+            ctx.fillStyle = '#ff3333';
+            ctx.fillRect(
+                e.x - 15,
+                e.y - e.radius - 8,
+                (e.hp / e.maxHp) * 30,
+                4
+            );
+        }
+    });
+
+    ctx.fillStyle = '#000000';
+    ctx.strokeStyle = player.isDashing ? '#00ffff' : '#aa00ff';
+    ctx.shadowColor = ctx.strokeStyle;
+    ctx.lineWidth = 4;
+    ctx.shadowBlur = 15;
+
     ctx.beginPath();
-    ctx.arc(player.x - camera.x, player.y - camera.y, player.radius, 0, Math.PI*2);
-    ctx.fillStyle = "#00ffcc";
-    ctx.shadowBlur = 20;
-    ctx.shadowColor = "#00ffcc";
+    ctx.arc(player.x, player.y, player.radius, 0, Math.PI*2);
     ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#00ffff';
+    ctx.shadowBlur = 5;
+
+    ctx.beginPath();
+    ctx.arc(player.x - 4, player.y - 2, 2, 0, Math.PI*2);
+    ctx.arc(player.x + 4, player.y - 2, 2, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.restore();
+
+    if (game.flashTime > 0) {
+        ctx.fillStyle = `rgba(255,255,255,${game.flashTime / 10})`;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
     ctx.shadowBlur = 0;
 
-    ctx.setTransform(1,0,0,1,0,0);
+    ctx.fillStyle = '#221111';
+    ctx.fillRect(20, 20, 200, 14);
 
-    update();
-    requestAnimationFrame(draw);
+    ctx.fillStyle = '#ff0055';
+    ctx.fillRect(20, 20, (player.hp / player.maxHp) * 200, 14);
+
+    ctx.strokeStyle = '#ff0055';
+    ctx.strokeRect(20, 20, 200, 14);
+
+    ctx.fillStyle = '#fff';
+    ctx.font = '10px Courier New';
+    ctx.fillText(`HP: ${Math.max(0, Math.floor(player.hp))}%`, 25, 31);
+
+    ctx.fillStyle = '#110022';
+    ctx.fillRect(20, 40, 200, 10);
+
+    ctx.fillStyle = '#9900ff';
+    ctx.fillRect(20, 40, (player.energy / player.maxEnergy) * 200, 10);
+
+    ctx.strokeStyle = '#9900ff';
+    ctx.strokeRect(20, 40, 200, 10);
+
+    ctx.fillStyle = '#fff';
+    ctx.fillText(`ENERGY: ${Math.floor(player.energy)}% (F)`, 25, 49);
+
+    ctx.fillStyle = '#00ffff';
+
+    ctx.fillText(
+        `Q (원형): ${player.cooldowns.q === 0 ? 'READY' : Math.ceil(player.cooldowns.q/60)+'s'}`,
+        240,
+        31
+    );
+
+    ctx.fillText(
+        `E (돌진): ${player.cooldowns.e === 0 ? 'READY' : Math.ceil(player.cooldowns.e/60)+'s'}`,
+        350,
+        31
+    );
+
+    ctx.fillText(
+        `R (폭발): ${player.cooldowns.r === 0 ? 'READY' : Math.ceil(player.cooldowns.r/60)+'s'}`,
+        460,
+        31
+    );
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '16px Courier New';
+    ctx.fillText(`SCORE: ${game.score}`, canvas.width - 160, 33);
 }
 
-draw();
+// --- 메인 루프 실행 엔진 ---
+function loop() {
+    update();
+    draw();
+    requestAnimationFrame(loop);
+}
 
-window.addEventListener("resize", ()=>{
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-});
+// 최초 실행
+loop();
 </script>
 </body>
 </html>
+```

@@ -1,9 +1,9 @@
-```html
+```html id="9x3k2a"
 <!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>Neon Requiem - Prototype</title>
+    <title>Neon Requiem - Sprite Prototype</title>
     <style>
         body {
             margin: 0;
@@ -40,7 +40,7 @@
 </head>
 <body>
 
-    <div id="gameTitle">《Neon Requiem》 Prototype</div>
+    <div id="gameTitle">《Neon Requiem》 Sprite Test</div>
     <canvas id="gameCanvas" width="960" height="540"></canvas>
     <div id="controls">
         [이동] WASD | [대시] Space | [기본공격] 마우스 좌클릭<br>
@@ -51,7 +51,18 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-// --- 게임 상태 및 환경 설정 ---
+// --- 1. 스프라이트 이미지 로드 ---
+const playerSprite = new Image();
+playerSprite.src = 'player_sprite.png';
+
+// 스프라이트 규격 설정
+const spriteConfig = {
+    frameWidth: 105,
+    frameHeight: 105,
+    scale: 1.2
+};
+
+// --- 게임 상태 ---
 const game = {
     flashTime: 0,
     shakeTime: 0,
@@ -63,13 +74,21 @@ const game = {
 const keys = {};
 const mouse = { x: 0, y: 0 };
 
-window.addEventListener('keydown', e => { keys[e.key.toLowerCase()] = true; handleSkillInput(e.key.toLowerCase()); });
-window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+window.addEventListener('keydown', e => {
+    keys[e.key.toLowerCase()] = true;
+    handleSkillInput(e.key.toLowerCase());
+});
+
+window.addEventListener('keyup', e => {
+    keys[e.key.toLowerCase()] = false;
+});
+
 canvas.addEventListener('mousemove', e => {
     const rect = canvas.getBoundingClientRect();
     mouse.x = e.clientX - rect.left;
     mouse.y = e.clientY - rect.top;
 });
+
 canvas.addEventListener('mousedown', e => {
     if (e.button === 0) triggerBasicAttack();
 });
@@ -80,29 +99,55 @@ const player = {
     y: canvas.height / 2,
     radius: 16,
     speed: 4,
+
     hp: 100,
     maxHp: 100,
+
     energy: 100,
     maxEnergy: 100,
-    // 대시 및 상태
+
+    currentAction: 'idle',
+    animRow: 0,
+    animFrame: 0,
+    animTimer: 0,
+    animSpeed: 6,
+    flipX: false,
+
     isDashing: false,
     dashTimer: 0,
     dashCooldown: 0,
     dashDir: { x: 0, y: 0 },
-    // 스킬 쿨타임
-    cooldowns: { q: 0, e: 0, r: 0, f: 0 }
+
+    cooldowns: {
+        q: 0,
+        e: 0,
+        r: 0,
+        f: 0
+    }
 };
 
-// --- 배열 관리 ---
+// --- 배열 ---
 let enemies = [];
 let particles = [];
 let skillEffects = [];
 
-// --- 이펙트 & 파티클 스폰 함수 ---
+// --- 애니메이션 변경 ---
+function changeAnimation(action, row, speed = 6) {
+    if (player.currentAction !== action) {
+        player.currentAction = action;
+        player.animRow = row;
+        player.animFrame = 0;
+        player.animTimer = 0;
+        player.animSpeed = speed;
+    }
+}
+
+// --- 파티클 ---
 function spawnParticle(x, y, color, count = 5) {
     for(let i=0; i<count; i++) {
         particles.push({
-            x: x, y: y,
+            x: x,
+            y: y,
             vx: (Math.random() - 0.5) * 6,
             vy: (Math.random() - 0.5) * 6,
             radius: Math.random() * 3 + 1,
@@ -118,82 +163,189 @@ function screenShake(duration, intensity) {
     game.shakeIntensity = intensity;
 }
 
-// --- 전투 로직 (입력 대응) ---
+// --- 기본 공격 ---
 function triggerBasicAttack() {
-    // 마우스 방향 계산
+    if (player.isDashing) return;
+
     const dx = mouse.x - player.x;
     const dy = mouse.y - player.y;
     const angle = Math.atan2(dy, dx);
-    
+
+    player.flipX = dx < 0;
+
+    changeAnimation('attack', 5, 4);
+
     skillEffects.push({
         type: 'slash',
-        x: player.x, y: player.y,
-        angle: angle, radius: 50,
-        color: '#ff0055', duration: 10, maxDuration: 10
+        x: player.x,
+        y: player.y,
+        angle: angle,
+        radius: 50,
+        color: '#ff0055',
+        duration: 10,
+        maxDuration: 10
     });
-    
-    // 공격 판정
-    checkHit(player.x + Math.cos(angle)*30, player.y + Math.sin(angle)*30, 40, 15);
+
+    checkHit(
+        player.x + Math.cos(angle) * 30,
+        player.y + Math.sin(angle) * 30,
+        40,
+        15
+    );
 }
 
+// --- 스킬 입력 ---
 function handleSkillInput(key) {
     if (player.isDashing) return;
 
+    // 대시
     if (key === ' ' && player.dashCooldown <= 0) {
-        // 대시 발동 (현재 입력 방향, 없으면 마우스 방향)
-        let dx = 0, dy = 0;
-        if (keys['w']) dy = -1; if (keys['s']) dy = 1;
-        if (keys['a']) dx = -1; if (keys['d']) dx = 1;
-        
+        let dx = 0;
+        let dy = 0;
+
+        if (keys['w']) dy = -1;
+        if (keys['s']) dy = 1;
+        if (keys['a']) dx = -1;
+        if (keys['d']) dx = 1;
+
         if (dx === 0 && dy === 0) {
-            const angle = Math.atan2(mouse.y - player.y, mouse.x - player.x);
-            dx = Math.cos(angle); dy = Math.sin(angle);
+            const angle = Math.atan2(
+                mouse.y - player.y,
+                mouse.x - player.x
+            );
+
+            dx = Math.cos(angle);
+            dy = Math.sin(angle);
         }
-        
-        const len = Math.sqrt(dx*dx + dy*dy);
-        player.dashDir = { x: dx/len, y: dy/len };
+
+        const len = Math.sqrt(dx * dx + dy * dy);
+
+        player.dashDir = {
+            x: dx / len,
+            y: dy / len
+        };
+
         player.isDashing = true;
-        player.dashTimer = 10; // 10프레임 동안 대시
+        player.dashTimer = 12;
         player.dashCooldown = 40;
+
+        player.flipX = player.dashDir.x < 0;
+
+        changeAnimation('dash', 2, 3);
     }
-    
-    // Q: 원형 베기
+
+    // Q
     if (key === 'q' && player.cooldowns.q <= 0) {
         player.cooldowns.q = 60;
-        skillEffects.push({ type: 'circle', x: player.x, y: player.y, radius: 10, maxRadius: 100, color: '#00ffff', duration: 15, maxDuration: 15 });
+
+        changeAnimation('skill1', 3, 3);
+
+        skillEffects.push({
+            type: 'circle',
+            x: player.x,
+            y: player.y,
+            radius: 10,
+            maxRadius: 100,
+            color: '#00ffff',
+            duration: 15,
+            maxDuration: 15
+        });
+
         checkHit(player.x, player.y, 100, 30);
+
         screenShake(10, 3);
     }
-    // E: 붕괴 돌진
+
+    // E
     if (key === 'e' && player.cooldowns.e <= 0) {
         player.cooldowns.e = 90;
-        const angle = Math.atan2(mouse.y - player.y, mouse.x - player.x);
+
+        changeAnimation('skill2', 2, 2);
+
+        const angle = Math.atan2(
+            mouse.y - player.y,
+            mouse.x - player.x
+        );
+
         const targetX = player.x + Math.cos(angle) * 150;
         const targetY = player.y + Math.sin(angle) * 150;
-        
-        skillEffects.push({ type: 'line', x1: player.x, y1: player.y, x2: targetX, y2: targetY, color: '#ff00ff', duration: 12, maxDuration: 12 });
-        
-        // 플레이어 순간이동 및 경로 판정
-        player.x = Math.max(20, Math.min(canvas.width - 20, targetX));
-        player.y = Math.max(20, Math.min(canvas.height - 20, targetY));
+
+        player.flipX = Math.cos(angle) < 0;
+
+        skillEffects.push({
+            type: 'line',
+            x1: player.x,
+            y1: player.y,
+            x2: targetX,
+            y2: targetY,
+            color: '#ff00ff',
+            duration: 12,
+            maxDuration: 12
+        });
+
+        player.x = Math.max(
+            20,
+            Math.min(canvas.width - 20, targetX)
+        );
+
+        player.y = Math.max(
+            20,
+            Math.min(canvas.height - 20, targetY)
+        );
+
         checkHit(player.x, player.y, 80, 40);
+
         screenShake(12, 4);
     }
-    // R: 기억 폭발
+
+    // R
     if (key === 'r' && player.cooldowns.r <= 0) {
         player.cooldowns.r = 120;
-        const tx = mouse.x; const ty = mouse.y;
-        skillEffects.push({ type: 'bomb', x: tx, y: ty, radius: 60, delay: 20, color: '#9900ff', duration: 35, maxDuration: 35, exploded: false });
+
+        changeAnimation('skill3', 4, 4);
+
+        const tx = mouse.x;
+        const ty = mouse.y;
+
+        skillEffects.push({
+            type: 'bomb',
+            x: tx,
+            y: ty,
+            radius: 60,
+            delay: 20,
+            color: '#9900ff',
+            duration: 35,
+            maxDuration: 35,
+            exploded: false
+        });
     }
-    // F: 궁극기 (기억 붕괴)
-    if (key === 'f' && player.cooldowns.f <= 0 && player.energy >= 100) {
+
+    // F
+    if (
+        key === 'f' &&
+        player.cooldowns.f <= 0 &&
+        player.energy >= 100
+    ) {
         player.energy = 0;
         player.cooldowns.f = 300;
+
         game.flashTime = 10;
+
         screenShake(30, 12);
-        
-        skillEffects.push({ type: 'ultimate', x: player.x, y: player.y, radius: 10, maxRadius: 600, color: '#6600ff', duration: 30, maxDuration: 30 });
-        
+
+        changeAnimation('ult', 6, 4);
+
+        skillEffects.push({
+            type: 'ultimate',
+            x: player.x,
+            y: player.y,
+            radius: 10,
+            maxRadius: 600,
+            color: '#6600ff',
+            duration: 30,
+            maxDuration: 30
+        });
+
         enemies.forEach(e => {
             e.hp -= 100;
             spawnParticle(e.x, e.y, '#9900ff', 15);
@@ -201,51 +353,95 @@ function handleSkillInput(key) {
     }
 }
 
+// --- 공격 판정 ---
 function checkHit(x, y, range, damage) {
     enemies.forEach(e => {
         const dist = Math.hypot(e.x - x, e.y - y);
+
         if (dist < range + e.radius) {
             e.hp -= damage;
+
             e.x += (e.x - player.x) * 0.2;
             e.y += (e.y - player.y) * 0.2;
+
             spawnParticle(e.x, e.y, '#ff0055', 6);
-            player.energy = Math.min(player.maxEnergy, player.energy + 2);
+
+            player.energy = Math.min(
+                player.maxEnergy,
+                player.energy + 2
+            );
         }
     });
 }
 
-// --- 적 스폰 및 AI ---
+// --- 적 생성 ---
 function spawnEnemy() {
     if (enemies.length < 8) {
         const side = Math.floor(Math.random() * 4);
-        let x, y;
-        if(side===0) { x = Math.random()*canvas.width; y = -20; }
-        else if(side===1) { x = canvas.width+20; y = Math.random()*canvas.height; }
-        else if(side===2) { x = Math.random()*canvas.width; y = canvas.height+20; }
-        else { x = -20; y = Math.random()*canvas.height; }
 
-        const type = Math.random() > 0.4 ? 'cultist' : 'ghost';
+        let x;
+        let y;
+
+        if(side === 0) {
+            x = Math.random() * canvas.width;
+            y = -20;
+        }
+        else if(side === 1) {
+            x = canvas.width + 20;
+            y = Math.random() * canvas.height;
+        }
+        else if(side === 2) {
+            x = Math.random() * canvas.width;
+            y = canvas.height + 20;
+        }
+        else {
+            x = -20;
+            y = Math.random() * canvas.height;
+        }
+
+        const type = Math.random() > 0.4
+            ? 'cultist'
+            : 'ghost';
+
         enemies.push({
-            x: x, y: y,
+            x: x,
+            y: y,
+
             radius: type === 'cultist' ? 14 : 12,
             speed: type === 'cultist' ? 1.8 : 2.5,
+
             hp: type === 'cultist' ? 40 : 20,
             maxHp: type === 'cultist' ? 40 : 20,
-            color: type === 'cultist' ? '#ff3333' : '#00ffcc',
+
+            color: type === 'cultist'
+                ? '#ff3333'
+                : '#00ffcc',
+
             type: type
         });
     }
 }
+
 setInterval(spawnEnemy, 2000);
 
-// --- 메인 업데이트 루프 ---
+// --- 업데이트 ---
 function update() {
+
+    // 대시 처리
     if (player.isDashing) {
+
         player.x += player.dashDir.x * 14;
         player.y += player.dashDir.y * 14;
 
-        player.x = Math.max(player.radius, Math.min(canvas.width - player.radius, player.x));
-        player.y = Math.max(player.radius, Math.min(canvas.height - player.radius, player.y));
+        player.x = Math.max(
+            player.radius,
+            Math.min(canvas.width - player.radius, player.x)
+        );
+
+        player.y = Math.max(
+            player.radius,
+            Math.min(canvas.height - player.radius, player.y)
+        );
 
         particles.push({
             x: player.x,
@@ -254,14 +450,22 @@ function update() {
             vy: 0,
             radius: player.radius,
             color: '#00ffff',
-            alpha: 0.4,
-            life: 8
+            alpha: 0.3,
+            life: 6
         });
 
         player.dashTimer--;
-        if (player.dashTimer <= 0) player.isDashing = false;
+
+        if (player.dashTimer <= 0) {
+            player.isDashing = false;
+            player.currentAction = 'idle';
+        }
+
     } else {
-        let mx = 0, my = 0;
+
+        let mx = 0;
+        let my = 0;
+
         if (keys['w']) my = -1;
         if (keys['s']) my = 1;
         if (keys['a']) mx = -1;
@@ -272,90 +476,218 @@ function update() {
             my *= 0.707;
         }
 
-        player.x += mx * player.speed;
-        player.y += my * player.speed;
+        if (mx !== 0 || my !== 0) {
 
-        player.x = Math.max(player.radius, Math.min(canvas.width - player.radius, player.x));
-        player.y = Math.max(player.radius, Math.min(canvas.height - player.radius, player.y));
+            player.x += mx * player.speed;
+            player.y += my * player.speed;
+
+            player.flipX = mx < 0
+                ? true
+                : (mx > 0 ? false : player.flipX);
+
+            if (
+                player.currentAction === 'idle' ||
+                player.currentAction === 'run'
+            ) {
+                changeAnimation('run', 1, 6);
+            }
+
+        } else {
+
+            if (
+                player.currentAction === 'run' ||
+                player.currentAction === 'idle'
+            ) {
+                changeAnimation('idle', 0, 8);
+            }
+        }
+
+        player.x = Math.max(
+            player.radius,
+            Math.min(canvas.width - player.radius, player.x)
+        );
+
+        player.y = Math.max(
+            player.radius,
+            Math.min(canvas.height - player.radius, player.y)
+        );
     }
 
-    if (player.dashCooldown > 0) player.dashCooldown--;
+    // 애니메이션
+    player.animTimer++;
+
+    if (player.animTimer >= player.animSpeed) {
+
+        player.animTimer = 0;
+        player.animFrame++;
+
+        if (player.animFrame >= 9) {
+
+            player.animFrame = 0;
+
+            if (
+                [
+                    'attack',
+                    'skill1',
+                    'skill2',
+                    'skill3',
+                    'ult'
+                ].includes(player.currentAction)
+            ) {
+                player.currentAction = 'idle';
+            }
+        }
+    }
+
+    // 쿨타임
+    if (player.dashCooldown > 0) {
+        player.dashCooldown--;
+    }
 
     for (let k in player.cooldowns) {
-        if (player.cooldowns[k] > 0) player.cooldowns[k]--;
+        if (player.cooldowns[k] > 0) {
+            player.cooldowns[k]--;
+        }
     }
 
+    // 적 AI
     enemies.forEach((e, idx) => {
+
         const dx = player.x - e.x;
         const dy = player.y - e.y;
+
         const dist = Math.hypot(dx, dy);
 
         e.x += (dx / dist) * e.speed;
         e.y += (dy / dist) * e.speed;
 
-        if (dist < player.radius + e.radius && !player.isDashing) {
+        if (
+            dist < player.radius + e.radius &&
+            !player.isDashing
+        ) {
             player.hp -= 0.3;
-            spawnParticle(player.x, player.y, '#ff0055', 1);
+
+            spawnParticle(
+                player.x,
+                player.y,
+                '#ff0055',
+                1
+            );
+
             screenShake(3, 1);
         }
 
         if (e.hp <= 0) {
+
             spawnParticle(e.x, e.y, e.color, 12);
-            game.score += e.type === 'cultist' ? 100 : 150;
+
+            game.score += e.type === 'cultist'
+                ? 100
+                : 150;
+
             enemies.splice(idx, 1);
         }
     });
 
+    // 스킬 이펙트
     skillEffects.forEach((eff, idx) => {
+
         eff.duration--;
 
-        if (eff.type === 'bomb' && !eff.exploded) {
-            if (eff.duration <= eff.maxDuration - eff.delay) {
+        if (
+            eff.type === 'bomb' &&
+            !eff.exploded
+        ) {
+
+            if (
+                eff.duration <=
+                eff.maxDuration - eff.delay
+            ) {
+
                 eff.exploded = true;
-                checkHit(eff.x, eff.y, eff.radius, 50);
+
+                checkHit(
+                    eff.x,
+                    eff.y,
+                    eff.radius,
+                    50
+                );
+
                 screenShake(15, 6);
-                spawnParticle(eff.x, eff.y, '#9900ff', 20);
+
+                spawnParticle(
+                    eff.x,
+                    eff.y,
+                    '#9900ff',
+                    20
+                );
             }
         }
 
-        if (eff.duration <= 0) skillEffects.splice(idx, 1);
+        if (eff.duration <= 0) {
+            skillEffects.splice(idx, 1);
+        }
     });
 
+    // 파티클
     particles.forEach((p, idx) => {
+
         p.x += p.vx;
         p.y += p.vy;
+
         p.life--;
+
         p.alpha = p.life / 30;
 
-        if (p.life <= 0) particles.splice(idx, 1);
+        if (p.life <= 0) {
+            particles.splice(idx, 1);
+        }
     });
 
-    if (game.shakeTime > 0) game.shakeTime--;
-    if (game.flashTime > 0) game.flashTime--;
+    if (game.shakeTime > 0) {
+        game.shakeTime--;
+    }
 
+    if (game.flashTime > 0) {
+        game.flashTime--;
+    }
+
+    // 게임오버
     if (player.hp <= 0) {
-        alert(`기억 오염으로 붕괴되었습니다. 최종 점수: ${game.score}`);
+
+        alert(
+            `기억 오염으로 붕괴되었습니다. 최종 점수: ${game.score}`
+        );
+
         player.hp = 100;
         player.energy = 100;
+
         game.score = 0;
+
         enemies = [];
         skillEffects = [];
     }
 }
 
-// --- 메인 렌더링 루프 ---
+// --- 렌더 ---
 function draw() {
+
     ctx.save();
 
+    // 쉐이크
     if (game.shakeTime > 0) {
-        const dx = (Math.random() - 0.5) * game.shakeIntensity;
-        const dy = (Math.random() - 0.5) * game.shakeIntensity;
-        ctx.translate(dx, dy);
+
+        ctx.translate(
+            (Math.random() - 0.5) * game.shakeIntensity,
+            (Math.random() - 0.5) * game.shakeIntensity
+        );
     }
 
+    // 배경
     ctx.fillStyle = '#0a0a14';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+    // 격자
     ctx.strokeStyle = '#141428';
     ctx.lineWidth = 1;
 
@@ -373,70 +705,110 @@ function draw() {
         ctx.stroke();
     }
 
+    // 파티클
     ctx.shadowBlur = 10;
 
     particles.forEach(p => {
+
         ctx.globalAlpha = p.alpha;
+
         ctx.fillStyle = p.color;
         ctx.shadowColor = p.color;
 
         ctx.beginPath();
-        ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2);
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
         ctx.fill();
     });
 
     ctx.globalAlpha = 1;
 
+    // 스킬 이펙트
     skillEffects.forEach(eff => {
+
         ctx.strokeStyle = eff.color;
         ctx.shadowColor = eff.color;
         ctx.fillStyle = eff.color;
 
         if (eff.type === 'slash') {
+
             ctx.lineWidth = 4;
 
             ctx.beginPath();
-            ctx.arc(eff.x, eff.y, eff.radius, eff.angle - 1, eff.angle + 1);
+            ctx.arc(
+                eff.x,
+                eff.y,
+                eff.radius,
+                eff.angle - 1,
+                eff.angle + 1
+            );
             ctx.stroke();
         }
 
         else if (eff.type === 'circle') {
+
             ctx.lineWidth = 6;
-            const currentRadius = eff.maxRadius * (1 - eff.duration / eff.maxDuration);
+
+            const currentRadius =
+                eff.maxRadius *
+                (1 - eff.duration / eff.maxDuration);
 
             ctx.beginPath();
-            ctx.arc(eff.x, eff.y, currentRadius, 0, Math.PI*2);
+            ctx.arc(
+                eff.x,
+                eff.y,
+                currentRadius,
+                0,
+                Math.PI * 2
+            );
             ctx.stroke();
         }
 
         else if (eff.type === 'line') {
-            ctx.lineWidth = 8 * (eff.duration / eff.maxDuration);
+
+            ctx.lineWidth =
+                8 * (eff.duration / eff.maxDuration);
 
             ctx.beginPath();
+
             ctx.moveTo(eff.x1, eff.y1);
             ctx.lineTo(eff.x2, eff.y2);
+
             ctx.stroke();
         }
 
         else if (eff.type === 'bomb') {
-            if (!eff.exploded) {
-                ctx.lineWidth = 2;
-                ctx.globalAlpha = 0.3 + 0.4 * Math.sin(eff.duration);
 
-                ctx.beginPath();
-                ctx.arc(eff.x, eff.y, eff.radius, 0, Math.PI*2);
-                ctx.fill();
-            } else {
-                ctx.lineWidth = 5 * (eff.duration / eff.maxDuration);
+            if (!eff.exploded) {
+
+                ctx.lineWidth = 2;
+                ctx.globalAlpha = 0.3;
 
                 ctx.beginPath();
                 ctx.arc(
                     eff.x,
                     eff.y,
-                    eff.radius * (1 - eff.duration/eff.maxDuration),
+                    eff.radius,
                     0,
-                    Math.PI*2
+                    Math.PI * 2
                 );
+                ctx.fill();
+
+            } else {
+
+                ctx.lineWidth =
+                    5 * (eff.duration / eff.maxDuration);
+
+                ctx.beginPath();
+
+                ctx.arc(
+                    eff.x,
+                    eff.y,
+                    eff.radius *
+                    (1 - eff.duration / eff.maxDuration),
+                    0,
+                    Math.PI * 2
+                );
+
                 ctx.stroke();
             }
 
@@ -444,35 +816,58 @@ function draw() {
         }
 
         else if (eff.type === 'ultimate') {
+
             ctx.lineWidth = 15;
 
-            const curR = eff.maxRadius * (1 - eff.duration / eff.maxDuration);
+            const curR =
+                eff.maxRadius *
+                (1 - eff.duration / eff.maxDuration);
 
             ctx.beginPath();
-            ctx.arc(eff.x, eff.y, curR, 0, Math.PI*2);
+
+            ctx.arc(
+                eff.x,
+                eff.y,
+                curR,
+                0,
+                Math.PI * 2
+            );
+
             ctx.stroke();
         }
     });
 
+    // 적
     enemies.forEach(e => {
+
         ctx.fillStyle = '#000000';
         ctx.strokeStyle = e.color;
         ctx.shadowColor = e.color;
+
         ctx.lineWidth = 3;
         ctx.shadowBlur = 12;
 
         ctx.beginPath();
-        ctx.arc(e.x, e.y, e.radius, 0, Math.PI*2);
+        ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2);
+
         ctx.fill();
         ctx.stroke();
 
         if(e.hp < e.maxHp) {
+
             ctx.shadowBlur = 0;
 
             ctx.fillStyle = '#222';
-            ctx.fillRect(e.x - 15, e.y - e.radius - 8, 30, 4);
+
+            ctx.fillRect(
+                e.x - 15,
+                e.y - e.radius - 8,
+                30,
+                4
+            );
 
             ctx.fillStyle = '#ff3333';
+
             ctx.fillRect(
                 e.x - 15,
                 e.y - e.radius - 8,
@@ -482,92 +877,177 @@ function draw() {
         }
     });
 
-    ctx.fillStyle = '#000000';
-    ctx.strokeStyle = player.isDashing ? '#00ffff' : '#aa00ff';
-    ctx.shadowColor = ctx.strokeStyle;
-    ctx.lineWidth = 4;
-    ctx.shadowBlur = 15;
+    // --- 플레이어 스프라이트 ---
+    ctx.save();
 
-    ctx.beginPath();
-    ctx.arc(player.x, player.y, player.radius, 0, Math.PI*2);
-    ctx.fill();
-    ctx.stroke();
+    ctx.translate(player.x, player.y);
 
-    ctx.fillStyle = '#00ffff';
-    ctx.shadowBlur = 5;
-
-    ctx.beginPath();
-    ctx.arc(player.x - 4, player.y - 2, 2, 0, Math.PI*2);
-    ctx.arc(player.x + 4, player.y - 2, 2, 0, Math.PI*2);
-    ctx.fill();
-
-    ctx.restore();
-
-    if (game.flashTime > 0) {
-        ctx.fillStyle = `rgba(255,255,255,${game.flashTime / 10})`;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    if (player.flipX) {
+        ctx.scale(-1, 1);
     }
 
+    const sx =
+        player.animFrame *
+        spriteConfig.frameWidth;
+
+    const sy =
+        player.animRow *
+        spriteConfig.frameHeight;
+
+    const sw = spriteConfig.frameWidth;
+    const sh = spriteConfig.frameHeight;
+
+    const dw =
+        spriteConfig.frameWidth *
+        spriteConfig.scale;
+
+    const dh =
+        spriteConfig.frameHeight *
+        spriteConfig.scale;
+
+    const dx = -dw / 2;
+    const dy = -dh / 2 - 5;
+
+    ctx.shadowBlur = 20;
+
+    ctx.shadowColor = player.isDashing
+        ? '#00ffff'
+        : '#aa00ff';
+
+    ctx.drawImage(
+        playerSprite,
+        sx,
+        sy,
+        sw,
+        sh,
+        dx,
+        dy,
+        dw,
+        dh
+    );
+
+    ctx.restore();
+    ctx.restore();
+
+    // 플래시
+    if (game.flashTime > 0) {
+
+        ctx.fillStyle =
+            `rgba(255,255,255,${game.flashTime / 10})`;
+
+        ctx.fillRect(
+            0,
+            0,
+            canvas.width,
+            canvas.height
+        );
+    }
+
+    // UI
     ctx.shadowBlur = 0;
 
+    // HP
     ctx.fillStyle = '#221111';
     ctx.fillRect(20, 20, 200, 14);
 
     ctx.fillStyle = '#ff0055';
-    ctx.fillRect(20, 20, (player.hp / player.maxHp) * 200, 14);
+    ctx.fillRect(
+        20,
+        20,
+        (player.hp / player.maxHp) * 200,
+        14
+    );
 
     ctx.strokeStyle = '#ff0055';
     ctx.strokeRect(20, 20, 200, 14);
 
     ctx.fillStyle = '#fff';
     ctx.font = '10px Courier New';
-    ctx.fillText(`HP: ${Math.max(0, Math.floor(player.hp))}%`, 25, 31);
 
+    ctx.fillText(
+        `HP: ${Math.max(0, Math.floor(player.hp))}%`,
+        25,
+        31
+    );
+
+    // 에너지
     ctx.fillStyle = '#110022';
     ctx.fillRect(20, 40, 200, 10);
 
     ctx.fillStyle = '#9900ff';
-    ctx.fillRect(20, 40, (player.energy / player.maxEnergy) * 200, 10);
+    ctx.fillRect(
+        20,
+        40,
+        (player.energy / player.maxEnergy) * 200,
+        10
+    );
 
     ctx.strokeStyle = '#9900ff';
     ctx.strokeRect(20, 40, 200, 10);
 
     ctx.fillStyle = '#fff';
-    ctx.fillText(`ENERGY: ${Math.floor(player.energy)}% (F)`, 25, 49);
 
+    ctx.fillText(
+        `ENERGY: ${Math.floor(player.energy)}% (F)`,
+        25,
+        49
+    );
+
+    // 쿨타임
     ctx.fillStyle = '#00ffff';
 
     ctx.fillText(
-        `Q (원형): ${player.cooldowns.q === 0 ? 'READY' : Math.ceil(player.cooldowns.q/60)+'s'}`,
+        `Q (원형): ${
+            player.cooldowns.q === 0
+                ? 'READY'
+                : Math.ceil(player.cooldowns.q / 60) + 's'
+        }`,
         240,
         31
     );
 
     ctx.fillText(
-        `E (돌진): ${player.cooldowns.e === 0 ? 'READY' : Math.ceil(player.cooldowns.e/60)+'s'}`,
+        `E (돌진): ${
+            player.cooldowns.e === 0
+                ? 'READY'
+                : Math.ceil(player.cooldowns.e / 60) + 's'
+        }`,
         350,
         31
     );
 
     ctx.fillText(
-        `R (폭발): ${player.cooldowns.r === 0 ? 'READY' : Math.ceil(player.cooldowns.r/60)+'s'}`,
+        `R (폭발): ${
+            player.cooldowns.r === 0
+                ? 'READY'
+                : Math.ceil(player.cooldowns.r / 60) + 's'
+        }`,
         460,
         31
     );
 
+    // 점수
     ctx.fillStyle = '#ffffff';
     ctx.font = '16px Courier New';
-    ctx.fillText(`SCORE: ${game.score}`, canvas.width - 160, 33);
+
+    ctx.fillText(
+        `SCORE: ${game.score}`,
+        canvas.width - 160,
+        33
+    );
 }
 
-// --- 메인 루프 실행 엔진 ---
+// --- 루프 ---
 function loop() {
     update();
     draw();
     requestAnimationFrame(loop);
 }
 
-// 최초 실행
+// 이미지 로드
+playerSprite.onload = function() {
+};
+
 loop();
 </script>
 </body>

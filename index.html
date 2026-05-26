@@ -1,4 +1,4 @@
-```html id="9x3k2a"
+```html
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -93,7 +93,7 @@ canvas.addEventListener('mousedown', e => {
     if (e.button === 0) triggerBasicAttack();
 });
 
-// --- 플레이어 객체 ---
+// --- 플레이어 ---
 const player = {
     x: canvas.width / 2,
     y: canvas.height / 2,
@@ -126,12 +126,11 @@ const player = {
     }
 };
 
-// --- 배열 ---
 let enemies = [];
 let particles = [];
 let skillEffects = [];
 
-// --- 애니메이션 변경 ---
+// --- 애니메이션 전환 ---
 function changeAnimation(action, row, speed = 6) {
     if (player.currentAction !== action) {
         player.currentAction = action;
@@ -144,14 +143,14 @@ function changeAnimation(action, row, speed = 6) {
 
 // --- 파티클 ---
 function spawnParticle(x, y, color, count = 5) {
-    for(let i=0; i<count; i++) {
+    for (let i = 0; i < count; i++) {
         particles.push({
-            x: x,
-            y: y,
+            x,
+            y,
             vx: (Math.random() - 0.5) * 6,
             vy: (Math.random() - 0.5) * 6,
             radius: Math.random() * 3 + 1,
-            color: color,
+            color,
             alpha: 1,
             life: Math.random() * 20 + 10
         });
@@ -179,7 +178,7 @@ function triggerBasicAttack() {
         type: 'slash',
         x: player.x,
         y: player.y,
-        angle: angle,
+        angle,
         radius: 50,
         color: '#ff0055',
         duration: 10,
@@ -320,7 +319,7 @@ function handleSkillInput(key) {
         });
     }
 
-    // F
+    // F 궁극기
     if (
         key === 'f' &&
         player.cooldowns.f <= 0 &&
@@ -353,7 +352,7 @@ function handleSkillInput(key) {
     }
 }
 
-// --- 공격 판정 ---
+// --- 적 피격 ---
 function checkHit(x, y, range, damage) {
     enemies.forEach(e => {
         const dist = Math.hypot(e.x - x, e.y - y);
@@ -382,42 +381,37 @@ function spawnEnemy() {
         let x;
         let y;
 
-        if(side === 0) {
+        if (side === 0) {
             x = Math.random() * canvas.width;
             y = -20;
-        }
-        else if(side === 1) {
+        } else if (side === 1) {
             x = canvas.width + 20;
             y = Math.random() * canvas.height;
-        }
-        else if(side === 2) {
+        } else if (side === 2) {
             x = Math.random() * canvas.width;
             y = canvas.height + 20;
-        }
-        else {
+        } else {
             x = -20;
             y = Math.random() * canvas.height;
         }
 
-        const type = Math.random() > 0.4
-            ? 'cultist'
-            : 'ghost';
+        const type =
+            Math.random() > 0.4
+                ? 'cultist'
+                : 'ghost';
 
         enemies.push({
-            x: x,
-            y: y,
-
+            x,
+            y,
             radius: type === 'cultist' ? 14 : 12,
             speed: type === 'cultist' ? 1.8 : 2.5,
-
             hp: type === 'cultist' ? 40 : 20,
             maxHp: type === 'cultist' ? 40 : 20,
-
-            color: type === 'cultist'
-                ? '#ff3333'
-                : '#00ffcc',
-
-            type: type
+            color:
+                type === 'cultist'
+                    ? '#ff3333'
+                    : '#00ffcc',
+            type
         });
     }
 }
@@ -427,7 +421,6 @@ setInterval(spawnEnemy, 2000);
 // --- 업데이트 ---
 function update() {
 
-    // 대시 처리
     if (player.isDashing) {
 
         player.x += player.dashDir.x * 14;
@@ -481,9 +474,10 @@ function update() {
             player.x += mx * player.speed;
             player.y += my * player.speed;
 
-            player.flipX = mx < 0
-                ? true
-                : (mx > 0 ? false : player.flipX);
+            player.flipX =
+                mx < 0
+                    ? true
+                    : (mx > 0 ? false : player.flipX);
 
             if (
                 player.currentAction === 'idle' ||
@@ -513,7 +507,6 @@ function update() {
         );
     }
 
-    // 애니메이션
     player.animTimer++;
 
     if (player.animTimer >= player.animSpeed) {
@@ -539,7 +532,6 @@ function update() {
         }
     }
 
-    // 쿨타임
     if (player.dashCooldown > 0) {
         player.dashCooldown--;
     }
@@ -550,7 +542,6 @@ function update() {
         }
     }
 
-    // 적 AI
     enemies.forEach((e, idx) => {
 
         const dx = player.x - e.x;
@@ -579,17 +570,22 @@ function update() {
 
         if (e.hp <= 0) {
 
-            spawnParticle(e.x, e.y, e.color, 12);
+            spawnParticle(
+                e.x,
+                e.y,
+                e.color,
+                12
+            );
 
-            game.score += e.type === 'cultist'
-                ? 100
-                : 150;
+            game.score +=
+                e.type === 'cultist'
+                    ? 100
+                    : 150;
 
             enemies.splice(idx, 1);
         }
     });
 
-    // 스킬 이펙트
     skillEffects.forEach((eff, idx) => {
 
         eff.duration--;
@@ -629,7 +625,6 @@ function update() {
         }
     });
 
-    // 파티클
     particles.forEach((p, idx) => {
 
         p.x += p.vx;
@@ -652,7 +647,6 @@ function update() {
         game.flashTime--;
     }
 
-    // 게임오버
     if (player.hp <= 0) {
 
         alert(
@@ -669,215 +663,83 @@ function update() {
     }
 }
 
-// --- 렌더 ---
+// --- 렌더링 ---
 function draw() {
 
     ctx.save();
 
-    // 쉐이크
     if (game.shakeTime > 0) {
-
         ctx.translate(
             (Math.random() - 0.5) * game.shakeIntensity,
             (Math.random() - 0.5) * game.shakeIntensity
         );
     }
 
-    // 배경
     ctx.fillStyle = '#0a0a14';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // 격자
     ctx.strokeStyle = '#141428';
     ctx.lineWidth = 1;
 
-    for(let i=0; i<canvas.width; i+=40) {
+    for (let i = 0; i < canvas.width; i += 40) {
         ctx.beginPath();
         ctx.moveTo(i, 0);
         ctx.lineTo(i, canvas.height);
         ctx.stroke();
     }
 
-    for(let j=0; j<canvas.height; j+=40) {
+    for (let j = 0; j < canvas.height; j += 40) {
         ctx.beginPath();
         ctx.moveTo(0, j);
         ctx.lineTo(canvas.width, j);
         ctx.stroke();
     }
 
-    // 파티클
     ctx.shadowBlur = 10;
 
     particles.forEach(p => {
 
         ctx.globalAlpha = p.alpha;
-
         ctx.fillStyle = p.color;
         ctx.shadowColor = p.color;
 
         ctx.beginPath();
-        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.arc(
+            p.x,
+            p.y,
+            p.radius,
+            0,
+            Math.PI * 2
+        );
+
         ctx.fill();
     });
 
     ctx.globalAlpha = 1;
 
-    // 스킬 이펙트
-    skillEffects.forEach(eff => {
-
-        ctx.strokeStyle = eff.color;
-        ctx.shadowColor = eff.color;
-        ctx.fillStyle = eff.color;
-
-        if (eff.type === 'slash') {
-
-            ctx.lineWidth = 4;
-
-            ctx.beginPath();
-            ctx.arc(
-                eff.x,
-                eff.y,
-                eff.radius,
-                eff.angle - 1,
-                eff.angle + 1
-            );
-            ctx.stroke();
-        }
-
-        else if (eff.type === 'circle') {
-
-            ctx.lineWidth = 6;
-
-            const currentRadius =
-                eff.maxRadius *
-                (1 - eff.duration / eff.maxDuration);
-
-            ctx.beginPath();
-            ctx.arc(
-                eff.x,
-                eff.y,
-                currentRadius,
-                0,
-                Math.PI * 2
-            );
-            ctx.stroke();
-        }
-
-        else if (eff.type === 'line') {
-
-            ctx.lineWidth =
-                8 * (eff.duration / eff.maxDuration);
-
-            ctx.beginPath();
-
-            ctx.moveTo(eff.x1, eff.y1);
-            ctx.lineTo(eff.x2, eff.y2);
-
-            ctx.stroke();
-        }
-
-        else if (eff.type === 'bomb') {
-
-            if (!eff.exploded) {
-
-                ctx.lineWidth = 2;
-                ctx.globalAlpha = 0.3;
-
-                ctx.beginPath();
-                ctx.arc(
-                    eff.x,
-                    eff.y,
-                    eff.radius,
-                    0,
-                    Math.PI * 2
-                );
-                ctx.fill();
-
-            } else {
-
-                ctx.lineWidth =
-                    5 * (eff.duration / eff.maxDuration);
-
-                ctx.beginPath();
-
-                ctx.arc(
-                    eff.x,
-                    eff.y,
-                    eff.radius *
-                    (1 - eff.duration / eff.maxDuration),
-                    0,
-                    Math.PI * 2
-                );
-
-                ctx.stroke();
-            }
-
-            ctx.globalAlpha = 1;
-        }
-
-        else if (eff.type === 'ultimate') {
-
-            ctx.lineWidth = 15;
-
-            const curR =
-                eff.maxRadius *
-                (1 - eff.duration / eff.maxDuration);
-
-            ctx.beginPath();
-
-            ctx.arc(
-                eff.x,
-                eff.y,
-                curR,
-                0,
-                Math.PI * 2
-            );
-
-            ctx.stroke();
-        }
-    });
-
-    // 적
     enemies.forEach(e => {
 
         ctx.fillStyle = '#000000';
         ctx.strokeStyle = e.color;
         ctx.shadowColor = e.color;
-
         ctx.lineWidth = 3;
         ctx.shadowBlur = 12;
 
         ctx.beginPath();
-        ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2);
+
+        ctx.arc(
+            e.x,
+            e.y,
+            e.radius,
+            0,
+            Math.PI * 2
+        );
 
         ctx.fill();
         ctx.stroke();
-
-        if(e.hp < e.maxHp) {
-
-            ctx.shadowBlur = 0;
-
-            ctx.fillStyle = '#222';
-
-            ctx.fillRect(
-                e.x - 15,
-                e.y - e.radius - 8,
-                30,
-                4
-            );
-
-            ctx.fillStyle = '#ff3333';
-
-            ctx.fillRect(
-                e.x - 15,
-                e.y - e.radius - 8,
-                (e.hp / e.maxHp) * 30,
-                4
-            );
-        }
     });
 
-    // --- 플레이어 스프라이트 ---
+    // 플레이어 스프라이트
     ctx.save();
 
     ctx.translate(player.x, player.y);
@@ -887,12 +749,10 @@ function draw() {
     }
 
     const sx =
-        player.animFrame *
-        spriteConfig.frameWidth;
+        player.animFrame * spriteConfig.frameWidth;
 
     const sy =
-        player.animRow *
-        spriteConfig.frameHeight;
+        player.animRow * spriteConfig.frameHeight;
 
     const sw = spriteConfig.frameWidth;
     const sh = spriteConfig.frameHeight;
@@ -910,9 +770,10 @@ function draw() {
 
     ctx.shadowBlur = 20;
 
-    ctx.shadowColor = player.isDashing
-        ? '#00ffff'
-        : '#aa00ff';
+    ctx.shadowColor =
+        player.isDashing
+            ? '#00ffff'
+            : '#aa00ff';
 
     ctx.drawImage(
         playerSprite,
@@ -929,24 +790,9 @@ function draw() {
     ctx.restore();
     ctx.restore();
 
-    // 플래시
-    if (game.flashTime > 0) {
-
-        ctx.fillStyle =
-            `rgba(255,255,255,${game.flashTime / 10})`;
-
-        ctx.fillRect(
-            0,
-            0,
-            canvas.width,
-            canvas.height
-        );
-    }
-
     // UI
     ctx.shadowBlur = 0;
 
-    // HP
     ctx.fillStyle = '#221111';
     ctx.fillRect(20, 20, 200, 14);
 
@@ -970,7 +816,6 @@ function draw() {
         31
     );
 
-    // 에너지
     ctx.fillStyle = '#110022';
     ctx.fillRect(20, 40, 200, 10);
 
@@ -993,11 +838,10 @@ function draw() {
         49
     );
 
-    // 쿨타임
     ctx.fillStyle = '#00ffff';
 
     ctx.fillText(
-        `Q (원형): ${
+        `Q: ${
             player.cooldowns.q === 0
                 ? 'READY'
                 : Math.ceil(player.cooldowns.q / 60) + 's'
@@ -1007,7 +851,7 @@ function draw() {
     );
 
     ctx.fillText(
-        `E (돌진): ${
+        `E: ${
             player.cooldowns.e === 0
                 ? 'READY'
                 : Math.ceil(player.cooldowns.e / 60) + 's'
@@ -1017,7 +861,7 @@ function draw() {
     );
 
     ctx.fillText(
-        `R (폭발): ${
+        `R: ${
             player.cooldowns.r === 0
                 ? 'READY'
                 : Math.ceil(player.cooldowns.r / 60) + 's'
@@ -1026,7 +870,6 @@ function draw() {
         31
     );
 
-    // 점수
     ctx.fillStyle = '#ffffff';
     ctx.font = '16px Courier New';
 
@@ -1037,18 +880,19 @@ function draw() {
     );
 }
 
-// --- 루프 ---
+// --- 게임 루프 ---
 function loop() {
     update();
     draw();
     requestAnimationFrame(loop);
 }
 
-// 이미지 로드
-playerSprite.onload = function() {
+playerSprite.onload = function () {
+    console.log('Sprite Loaded');
 };
 
 loop();
+
 </script>
 </body>
 </html>

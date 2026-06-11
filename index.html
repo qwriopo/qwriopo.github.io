@@ -3,64 +3,254 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>마우스 행동 데이터 수집</title>
+
+<title>마우스 행동 연구</title>
 
 <style>
-body{
+
+*{
+    box-sizing:border-box;
     margin:0;
-    overflow:hidden;
-    font-family:sans-serif;
+    padding:0;
 }
 
-#overlay{
+body{
+    font-family:
+        "Pretendard",
+        "Noto Sans KR",
+        sans-serif;
+
+    background:
+        linear-gradient(
+            135deg,
+            #0f172a,
+            #1e293b
+        );
+
+    color:white;
+    overflow:hidden;
+}
+
+#startScreen,
+#finishScreen{
+
     position:fixed;
     inset:0;
+
     display:flex;
     justify-content:center;
     align-items:center;
-    background:white;
+
+    background:
+        rgba(15,23,42,.95);
+
     z-index:1000;
 }
 
-#startBtn{
-    padding:20px 40px;
-    font-size:24px;
+.card{
+
+    width:min(700px,90vw);
+
+    background:
+        rgba(255,255,255,.08);
+
+    backdrop-filter:blur(10px);
+
+    border:1px solid
+        rgba(255,255,255,.15);
+
+    border-radius:24px;
+
+    padding:40px;
+    text-align:center;
+}
+
+.card h1{
+
+    font-size:40px;
+    margin-bottom:20px;
+}
+
+.card p{
+
+    color:#cbd5e1;
+    line-height:1.8;
+    margin-bottom:30px;
+}
+
+button{
+
+    border:none;
+    border-radius:14px;
+
+    padding:16px 32px;
+
+    font-size:18px;
+
     cursor:pointer;
+
+    background:#3b82f6;
+    color:white;
+
+    transition:.2s;
+}
+
+button:hover{
+
+    transform:translateY(-2px);
+}
+
+#hud{
+
+    position:fixed;
+
+    top:20px;
+    left:50%;
+
+    transform:translateX(-50%);
+
+    width:min(700px,90vw);
+
+    background:
+        rgba(255,255,255,.08);
+
+    backdrop-filter:blur(10px);
+
+    border-radius:20px;
+
+    padding:16px;
+
+    z-index:50;
+}
+
+#stats{
+
+    display:flex;
+    justify-content:space-between;
+
+    margin-bottom:12px;
+}
+
+.progress{
+
+    width:100%;
+    height:12px;
+
+    background:
+        rgba(255,255,255,.1);
+
+    border-radius:999px;
+
+    overflow:hidden;
+}
+
+.progressFill{
+
+    width:0%;
+    height:100%;
+
+    background:#3b82f6;
+
+    transition:.2s;
 }
 
 #target{
-    position:absolute;
-    width:50px;
-    height:50px;
+
+    width:56px;
+    height:56px;
+
     border-radius:50%;
-    background:red;
+
+    position:absolute;
+
     display:none;
+
     cursor:pointer;
+
+    background:
+        radial-gradient(
+            circle at 30% 30%,
+            #ff8a8a,
+            #ef4444
+        );
+
+    box-shadow:
+        0 0 25px
+        rgba(239,68,68,.7);
 }
 
-#info{
-    position:fixed;
-    top:10px;
-    left:10px;
-    background:white;
-    padding:10px;
-    border:1px solid #ccc;
-    border-radius:8px;
+#finishScreen{
+    display:none;
 }
+
+.loading{
+
+    font-size:18px;
+    margin-top:20px;
+    color:#93c5fd;
+}
+
 </style>
 </head>
 <body>
 
-<div id="overlay">
-    <button id="startBtn">테스트 시작</button>
+<div id="startScreen">
+    <div class="card">
+        <h1>🖱️ 마우스 행동 연구</h1>
+
+        <p>
+            화면에 나타나는 목표를 클릭해주세요.<br>
+            수집되는 정보는 마우스 이동 및 클릭 데이터뿐이며
+            개인 정보는 저장되지 않습니다.
+        </p>
+
+        <button id="startBtn">
+            실험 시작
+        </button>
+    </div>
 </div>
 
-<div id="info">
-    남은 목표:
-    <span id="remain">20</span>
+<div id="hud">
+
+    <div id="stats">
+        <div>
+            진행도:
+            <span id="count">
+                0 / 20
+            </span>
+        </div>
+
+        <div>
+            남은 목표:
+            <span id="remain">
+                20
+            </span>
+        </div>
+    </div>
+
+    <div class="progress">
+        <div
+            class="progressFill"
+            id="progressFill">
+        </div>
+    </div>
 </div>
 
 <div id="target"></div>
+
+<div id="finishScreen">
+    <div class="card">
+        <h1>📤 제출 중...</h1>
+
+        <p id="finishText">
+            데이터를 서버로 전송하고 있습니다.
+        </p>
+
+        <div class="loading">
+            잠시만 기다려주세요...
+        </div>
+    </div>
+</div>
 
 <script>
 
@@ -69,11 +259,29 @@ const SCRIPT_URL =
 
 const TARGET_COUNT = 20;
 
-const target = document.getElementById("target");
-const remain = document.getElementById("remain");
+const target =
+document.getElementById("target");
 
-const userId = crypto.randomUUID();
-const sessionId = crypto.randomUUID();
+const remainText =
+document.getElementById("remain");
+
+const countText =
+document.getElementById("count");
+
+const progressFill =
+document.getElementById("progressFill");
+
+const finishScreen =
+document.getElementById("finishScreen");
+
+const finishText =
+document.getElementById("finishText");
+
+const userId =
+crypto.randomUUID();
+
+const sessionId =
+crypto.randomUUID();
 
 let clicks = 0;
 let lastTargetTime = 0;
@@ -84,26 +292,45 @@ let speedSamples = [];
 
 let prevMouse = null;
 
-document.addEventListener("mousemove", e => {
+document.addEventListener(
+"mousemove",
+e=>{
 
-    const now = performance.now();
+    const now =
+    performance.now();
 
     if(prevMouse){
 
-        const dx = e.clientX - prevMouse.x;
-        const dy = e.clientY - prevMouse.y;
+        const dx =
+        e.clientX -
+        prevMouse.x;
 
-        const dist = Math.sqrt(dx*dx + dy*dy);
-        const dt = now - prevMouse.t;
+        const dy =
+        e.clientY -
+        prevMouse.y;
 
-        if(dt > 0){
+        const dist =
+        Math.sqrt(
+            dx*dx +
+            dy*dy
+        );
+
+        const dt =
+        now -
+        prevMouse.t;
+
+        if(dt>0){
 
             totalDistance += dist;
-            speedSamples.push(dist / dt);
+
+            speedSamples.push(
+                dist/dt
+            );
         }
     }
 
     prevMouse = {
+
         x:e.clientX,
         y:e.clientY,
         t:now
@@ -112,37 +339,52 @@ document.addEventListener("mousemove", e => {
 
 function placeTarget(){
 
-    const size = 50;
+    const size = 56;
 
     const x =
         Math.random() *
-        (window.innerWidth - size);
+        (window.innerWidth-size);
 
     const y =
         Math.random() *
-        (window.innerHeight - size);
+        (window.innerHeight-size);
 
-    target.style.left = x + "px";
-    target.style.top = y + "px";
-    target.style.display = "block";
+    target.style.left =
+        x + "px";
 
-    lastTargetTime = performance.now();
+    target.style.top =
+        y + "px";
+
+    target.style.display =
+        "block";
+
+    lastTargetTime =
+        performance.now();
 }
 
-target.addEventListener("click", () => {
+target.addEventListener(
+"click",
+()=>{
 
     const rt =
-        performance.now() -
-        lastTargetTime;
+        performance.now()
+        - lastTargetTime;
 
     reactionTimes.push(rt);
 
     clicks++;
 
-    remain.textContent =
-        TARGET_COUNT - clicks;
+    remainText.textContent =
+        TARGET_COUNT-clicks;
 
-    if(clicks >= TARGET_COUNT){
+    countText.textContent =
+        `${clicks} / ${TARGET_COUNT}`;
+
+    progressFill.style.width =
+        `${clicks/TARGET_COUNT*100}%`;
+
+    if(clicks>=TARGET_COUNT){
+
         finishTest();
         return;
     }
@@ -150,11 +392,10 @@ target.addEventListener("click", () => {
     placeTarget();
 });
 
-function average(arr){
+function avg(arr){
 
-    if(arr.length === 0){
+    if(arr.length===0)
         return 0;
-    }
 
     return arr.reduce(
         (a,b)=>a+b,0
@@ -163,7 +404,10 @@ function average(arr){
 
 async function finishTest(){
 
-    target.style.display = "none";
+    target.style.display="none";
+
+    finishScreen.style.display=
+        "flex";
 
     const payload = {
 
@@ -175,17 +419,19 @@ async function finishTest(){
 
         avgReactionTime:
             Math.round(
-                average(reactionTimes)
+                avg(reactionTimes)
             ),
 
         avgSpeed:
             Number(
-                average(speedSamples)
+                avg(speedSamples)
                 .toFixed(4)
             ),
 
         totalDistance:
-            Math.round(totalDistance)
+            Math.round(
+                totalDistance
+            )
     };
 
     try{
@@ -200,25 +446,26 @@ async function finishTest(){
                         "application/json"
                     },
                     body:
-                    JSON.stringify(payload)
+                    JSON.stringify(
+                        payload
+                    )
                 }
             );
 
-        console.log(
-            await response.text()
-        );
+        const text =
+            await response.text();
 
-        alert(
-            "제출 완료! 감사합니다."
-        );
+        console.log(text);
+
+        finishText.innerHTML =
+            "✅ 데이터 제출 완료<br><br>참여해주셔서 감사합니다.";
 
     }catch(err){
 
         console.error(err);
 
-        alert(
-            "데이터 전송 실패\nF12 콘솔을 확인해주세요."
-        );
+        finishText.innerHTML =
+            "❌ 전송 실패<br><br>F12 → Console의 오류 메시지를 개발자에게 전달해주세요.";
     }
 }
 
@@ -226,11 +473,13 @@ document
 .getElementById("startBtn")
 .addEventListener(
 "click",
-() => {
+()=>{
 
     document
-    .getElementById("overlay")
-    .remove();
+    .getElementById(
+        "startScreen"
+    )
+    .style.display="none";
 
     placeTarget();
 });

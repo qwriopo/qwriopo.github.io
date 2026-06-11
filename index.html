@@ -1,238 +1,27 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<title>마우스 행동 연구</title>
-
-<style>
-
-*{
-    box-sizing:border-box;
-    margin:0;
-    padding:0;
-}
-
-body{
-    font-family:
-        "Pretendard",
-        "Noto Sans KR",
-        sans-serif;
-
-    background:
-        linear-gradient(
-            135deg,
-            #0f172a,
-            #1e293b
-        );
-
-    color:white;
-    overflow:hidden;
-}
-
-#startScreen,
-#finishScreen{
-
-    position:fixed;
-    inset:0;
-
-    display:flex;
-    justify-content:center;
-    align-items:center;
-
-    background:
-        rgba(15,23,42,.95);
-
-    z-index:1000;
-}
-
-.card{
-
-    width:min(700px,90vw);
-
-    background:
-        rgba(255,255,255,.08);
-
-    backdrop-filter:blur(10px);
-
-    border:1px solid
-        rgba(255,255,255,.15);
-
-    border-radius:24px;
-
-    padding:40px;
-    text-align:center;
-}
-
-.card h1{
-
-    font-size:40px;
-    margin-bottom:20px;
-}
-
-.card p{
-
-    color:#cbd5e1;
-    line-height:1.8;
-    margin-bottom:30px;
-}
-
-button{
-
-    border:none;
-    border-radius:14px;
-
-    padding:16px 32px;
-
-    font-size:18px;
-
-    cursor:pointer;
-
-    background:#3b82f6;
-    color:white;
-
-    transition:.2s;
-}
-
-button:hover{
-
-    transform:translateY(-2px);
-}
-
-#hud{
-
-    position:fixed;
-
-    top:20px;
-    left:50%;
-
-    transform:translateX(-50%);
-
-    width:min(700px,90vw);
-
-    background:
-        rgba(255,255,255,.08);
-
-    backdrop-filter:blur(10px);
-
-    border-radius:20px;
-
-    padding:16px;
-
-    z-index:50;
-}
-
-#stats{
-
-    display:flex;
-    justify-content:space-between;
-
-    margin-bottom:12px;
-}
-
-.progress{
-
-    width:100%;
-    height:12px;
-
-    background:
-        rgba(255,255,255,.1);
-
-    border-radius:999px;
-
-    overflow:hidden;
-}
-
-.progressFill{
-
-    width:0%;
-    height:100%;
-
-    background:#3b82f6;
-
-    transition:.2s;
-}
-
-#target{
-
-    width:56px;
-    height:56px;
-
-    border-radius:50%;
-
-    position:absolute;
-
-    display:none;
-
-    cursor:pointer;
-
-    background:
-        radial-gradient(
-            circle at 30% 30%,
-            #ff8a8a,
-            #ef4444
-        );
-
-    box-shadow:
-        0 0 25px
-        rgba(239,68,68,.7);
-}
-
-#finishScreen{
-    display:none;
-}
-
-.loading{
-
-    font-size:18px;
-    margin-top:20px;
-    color:#93c5fd;
-}
-
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>마우스 행동 연구</title>
+    <style>
+        * { box-sizing:border-box; margin:0; padding:0; }
+        body { font-family: "Pretendard", "Noto Sans KR", sans-serif; background: linear-gradient(135deg, #0f172a, #1e293b); color:white; overflow:hidden; }
+        #startScreen, #finishScreen { position:fixed; inset:0; display:flex; justify-content:center; align-items:center; background:rgba(15,23,42,.95); z-index:1000; }
+        .card { width:min(700px,90vw); background:rgba(255,255,255,.08); backdrop-filter:blur(10px); border:1px solid rgba(255,255,255,.15); border-radius:24px; padding:40px; text-align:center; }
+        button { border:none; border-radius:14px; padding:16px 32px; font-size:18px; cursor:pointer; background:#3b82f6; color:white; transition:.2s; }
+        button:hover { transform:translateY(-2px); }
+        #target { width:56px; height:56px; border-radius:50%; position:absolute; display:none; cursor:pointer; background:radial-gradient(circle at 30% 30%, #ff8a8a, #ef4444); box-shadow:0 0 25px rgba(239,68,68,.7); }
+        #finishScreen { display:none; }
+    </style>
 </head>
 <body>
 
 <div id="startScreen">
     <div class="card">
         <h1>🖱️ 마우스 행동 연구</h1>
-
-        <p>
-            화면에 나타나는 목표를 클릭해주세요.<br>
-            수집되는 정보는 마우스 이동 및 클릭 데이터뿐이며
-            개인 정보는 저장되지 않습니다.
-        </p>
-
-        <button id="startBtn">
-            실험 시작
-        </button>
-    </div>
-</div>
-
-<div id="hud">
-
-    <div id="stats">
-        <div>
-            진행도:
-            <span id="count">
-                0 / 20
-            </span>
-        </div>
-
-        <div>
-            남은 목표:
-            <span id="remain">
-                20
-            </span>
-        </div>
-    </div>
-
-    <div class="progress">
-        <div
-            class="progressFill"
-            id="progressFill">
-        </div>
+        <p>화면에 나타나는 목표를 클릭해주세요.</p>
+        <button id="startBtn">실험 시작</button>
     </div>
 </div>
 
@@ -241,242 +30,68 @@ button:hover{
 <div id="finishScreen">
     <div class="card">
         <h1>📤 제출 중...</h1>
-
-        <p id="finishText">
-            데이터를 서버로 전송하고 있습니다.
-        </p>
-
-        <div class="loading">
-            잠시만 기다려주세요...
-        </div>
+        <p id="finishText">데이터를 서버로 전송하고 있습니다.</p>
     </div>
 </div>
 
 <script>
-
-const SCRIPT_URL =
-"https://script.google.com/macros/s/AKfycbwzzlRpzbxMC4XAd0zHoNueq-oRjx6raQ49PILvdhvlKgA8d2jHx8480CATMAyKsE08lw/exec";
+// [중요] 여기 URL을 방금 배포하신 URL로 바꾸세요!
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwzzlRpzbxMC4XAd0zHoNueq-oRjx6raQ49PILvdhvlKgA8d2jHx8480CATMAyKsE08lw/exec";
 
 const TARGET_COUNT = 20;
+let clicks = 0, lastTargetTime = 0, totalDistance = 0;
+let reactionTimes = [], speedSamples = [], prevMouse = null;
+const userId = crypto.randomUUID(), sessionId = crypto.randomUUID();
 
-const target =
-document.getElementById("target");
-
-const remainText =
-document.getElementById("remain");
-
-const countText =
-document.getElementById("count");
-
-const progressFill =
-document.getElementById("progressFill");
-
-const finishScreen =
-document.getElementById("finishScreen");
-
-const finishText =
-document.getElementById("finishText");
-
-const userId =
-crypto.randomUUID();
-
-const sessionId =
-crypto.randomUUID();
-
-let clicks = 0;
-let lastTargetTime = 0;
-
-let reactionTimes = [];
-let totalDistance = 0;
-let speedSamples = [];
-
-let prevMouse = null;
-
-document.addEventListener(
-"mousemove",
-e=>{
-
-    const now =
-    performance.now();
-
+document.addEventListener("mousemove", e => {
+    const now = performance.now();
     if(prevMouse){
-
-        const dx =
-        e.clientX -
-        prevMouse.x;
-
-        const dy =
-        e.clientY -
-        prevMouse.y;
-
-        const dist =
-        Math.sqrt(
-            dx*dx +
-            dy*dy
-        );
-
-        const dt =
-        now -
-        prevMouse.t;
-
-        if(dt>0){
-
-            totalDistance += dist;
-
-            speedSamples.push(
-                dist/dt
-            );
-        }
+        const dist = Math.sqrt((e.clientX - prevMouse.x)**2 + (e.clientY - prevMouse.y)**2);
+        const dt = now - prevMouse.t;
+        if(dt > 0) { totalDistance += dist; speedSamples.push(dist/dt); }
     }
-
-    prevMouse = {
-
-        x:e.clientX,
-        y:e.clientY,
-        t:now
-    };
+    prevMouse = { x:e.clientX, y:e.clientY, t:now };
 });
 
 function placeTarget(){
-
-    const size = 56;
-
-    const x =
-        Math.random() *
-        (window.innerWidth-size);
-
-    const y =
-        Math.random() *
-        (window.innerHeight-size);
-
-    target.style.left =
-        x + "px";
-
-    target.style.top =
-        y + "px";
-
-    target.style.display =
-        "block";
-
-    lastTargetTime =
-        performance.now();
+    target.style.left = Math.random() * (window.innerWidth-56) + "px";
+    target.style.top = Math.random() * (window.innerHeight-56) + "px";
+    target.style.display = "block";
+    lastTargetTime = performance.now();
 }
 
-target.addEventListener(
-"click",
-()=>{
-
-    const rt =
-        performance.now()
-        - lastTargetTime;
-
-    reactionTimes.push(rt);
-
+target.addEventListener("click", () => {
+    reactionTimes.push(performance.now() - lastTargetTime);
     clicks++;
-
-    remainText.textContent =
-        TARGET_COUNT-clicks;
-
-    countText.textContent =
-        `${clicks} / ${TARGET_COUNT}`;
-
-    progressFill.style.width =
-        `${clicks/TARGET_COUNT*100}%`;
-
-    if(clicks>=TARGET_COUNT){
-
-        finishTest();
-        return;
-    }
-
-    placeTarget();
+    if(clicks >= TARGET_COUNT) finishTest();
+    else placeTarget();
 });
-
-function avg(arr){
-
-    if(arr.length===0)
-        return 0;
-
-    return arr.reduce(
-        (a,b)=>a+b,0
-    ) / arr.length;
-}
 
 async function finishTest(){
-
-    target.style.display="none";
-
-    finishScreen.style.display="flex";
+    target.style.display = "none";
+    finishScreen.style.display = "flex";
 
     const payload = {
-
-        userId,
-        sessionId,
-
-        targetCount: TARGET_COUNT,
-
-        avgReactionTime:
-            Math.round(
-                avg(reactionTimes)
-            ),
-
-        avgSpeed:
-            Number(
-                avg(speedSamples)
-                .toFixed(4)
-            ),
-
-        totalDistance:
-            Math.round(
-                totalDistance
-            )
+        userId, sessionId, targetCount: TARGET_COUNT,
+        avgReactionTime: Math.round(reactionTimes.reduce((a,b)=>a+b,0)/reactionTimes.length),
+        avgSpeed: Number((speedSamples.reduce((a,b)=>a+b,0)/speedSamples.length).toFixed(4)),
+        totalDistance: Math.round(totalDistance)
     };
 
-    try{
-
-        const params =
-            new URLSearchParams(payload);
-
-        const response =
-            await fetch(
-                SCRIPT_URL +
-                "?" +
-                params.toString()
-            );
-
-        const text =
-            await response.text();
-
-        console.log(text);
-
-        finishText.innerHTML =
-            "✅ 데이터 제출 완료<br><br>참여해주셔서 감사합니다.";
-
-    }catch(err){
-
-        console.error(err);
-
-        finishText.innerHTML =
-            "❌ 전송 실패<br><br>F12 → Console 오류를 확인해주세요.";
+    try {
+        const params = new URLSearchParams(payload);
+        // CORS 문제 해결을 위해 no-cors 모드 사용
+        await fetch(SCRIPT_URL + "?" + params.toString(), { method: 'GET', mode: 'no-cors' });
+        finishText.innerHTML = "✅ 데이터 제출 완료<br><br>참여해주셔서 감사합니다.";
+    } catch(err) {
+        finishText.innerHTML = "❌ 전송 실패<br><br>F12 콘솔을 확인하세요.";
     }
 }
 
-document
-.getElementById("startBtn")
-.addEventListener(
-"click",
-()=>{
-
-    document
-    .getElementById(
-        "startScreen"
-    )
-    .style.display="none";
-
+document.getElementById("startBtn").addEventListener("click", () => {
+    document.getElementById("startScreen").style.display = "none";
     placeTarget();
 });
-
 </script>
-
 </body>
 </html>

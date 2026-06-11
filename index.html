@@ -2,7 +2,8 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<title>Mouse Behavior Collection</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>마우스 행동 데이터 수집</title>
 
 <style>
 body{
@@ -11,14 +12,14 @@ body{
     font-family:sans-serif;
 }
 
-#startScreen{
+#overlay{
     position:fixed;
     inset:0;
     display:flex;
     justify-content:center;
     align-items:center;
     background:white;
-    z-index:100;
+    z-index:1000;
 }
 
 #startBtn{
@@ -44,60 +45,69 @@ body{
     background:white;
     padding:10px;
     border:1px solid #ccc;
+    border-radius:8px;
 }
 </style>
 </head>
 <body>
 
-<div id="startScreen">
+<div id="overlay">
     <button id="startBtn">테스트 시작</button>
 </div>
 
 <div id="info">
-    남은 목표: <span id="remain">30</span>
+    남은 목표:
+    <span id="remain">20</span>
 </div>
 
 <div id="target"></div>
 
 <script>
 
-const TOTAL_TARGETS = 30;
+const SCRIPT_URL =
+"https://script.google.com/macros/s/AKfycbwzzlRpzbxMC4XAd0zHoNueq-oRjx6raQ49PILvdhvlKgA8d2jHx8480CATMAyKsE08lw/exec";
 
-let remaining = TOTAL_TARGETS;
+const TARGET_COUNT = 20;
 
 const target = document.getElementById("target");
-const remainText = document.getElementById("remain");
+const remain = document.getElementById("remain");
 
 const userId = crypto.randomUUID();
 const sessionId = crypto.randomUUID();
 
-let startTime = null;
+let clicks = 0;
+let lastTargetTime = 0;
 
-const events = [];
+let reactionTimes = [];
+let totalDistance = 0;
+let speedSamples = [];
 
-function now(){
-    return performance.now();
-}
+let prevMouse = null;
 
-function record(type,x,y){
-    events.push({
-        userId,
-        sessionId,
-        type,
-        x,
-        y,
-        t: now()
-    });
-}
+document.addEventListener("mousemove", e => {
 
-document.addEventListener("mousemove",(e)=>{
-    if(startTime===null) return;
+    const now = performance.now();
 
-    record(
-        "move",
-        e.clientX,
-        e.clientY
-    );
+    if(prevMouse){
+
+        const dx = e.clientX - prevMouse.x;
+        const dy = e.clientY - prevMouse.y;
+
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        const dt = now - prevMouse.t;
+
+        if(dt > 0){
+
+            totalDistance += dist;
+            speedSamples.push(dist / dt);
+        }
+    }
+
+    prevMouse = {
+        x:e.clientX,
+        y:e.clientY,
+        t:now
+    };
 });
 
 function placeTarget(){
@@ -106,30 +116,33 @@ function placeTarget(){
 
     const x =
         Math.random() *
-        (window.innerWidth-size);
+        (window.innerWidth - size);
 
     const y =
         Math.random() *
-        (window.innerHeight-size);
+        (window.innerHeight - size);
 
-    target.style.left = x+"px";
-    target.style.top = y+"px";
+    target.style.left = x + "px";
+    target.style.top = y + "px";
     target.style.display = "block";
+
+    lastTargetTime = performance.now();
 }
 
-target.addEventListener("click",(e)=>{
+target.addEventListener("click", () => {
 
-    record(
-        "click",
-        e.clientX,
-        e.clientY
-    );
+    const rt =
+        performance.now() -
+        lastTargetTime;
 
-    remaining--;
+    reactionTimes.push(rt);
 
-    remainText.textContent = remaining;
+    clicks++;
 
-    if(remaining<=0){
+    remain.textContent =
+        TARGET_COUNT - clicks;
+
+    if(clicks >= TARGET_COUNT){
         finishTest();
         return;
     }
@@ -137,43 +150,87 @@ target.addEventListener("click",(e)=>{
     placeTarget();
 });
 
-function finishTest(){
+function average(arr){
 
-    target.style.display="none";
+    if(arr.length === 0){
+        return 0;
+    }
 
-    const result = {
+    return arr.reduce(
+        (a,b)=>a+b,0
+    ) / arr.length;
+}
+
+async function finishTest(){
+
+    target.style.display = "none";
+
+    const payload = {
+
         userId,
         sessionId,
-        finishedAt: Date.now(),
-        events
+
+        targetCount:
+            TARGET_COUNT,
+
+        avgReactionTime:
+            Math.round(
+                average(reactionTimes)
+            ),
+
+        avgSpeed:
+            Number(
+                average(speedSamples)
+                .toFixed(4)
+            ),
+
+        totalDistance:
+            Math.round(totalDistance)
     };
 
-    const blob = new Blob(
-        [JSON.stringify(result,null,2)],
-        {type:"application/json"}
-    );
+    try{
 
-    const url = URL.createObjectURL(blob);
+        const response =
+            await fetch(
+                SCRIPT_URL,
+                {
+                    method:"POST",
+                    headers:{
+                        "Content-Type":
+                        "application/json"
+                    },
+                    body:
+                    JSON.stringify(payload)
+                }
+            );
 
-    const a = document.createElement("a");
-    a.href = url;
-    a.download =
-        `mouse_data_${sessionId}.json`;
+        console.log(
+            await response.text()
+        );
 
-    a.click();
+        alert(
+            "제출 완료! 감사합니다."
+        );
 
-    alert("테스트 완료!");
+    }catch(err){
+
+        console.error(err);
+
+        alert(
+            "데이터 전송 실패\nF12 콘솔을 확인해주세요."
+        );
+    }
 }
 
 document
 .getElementById("startBtn")
-.addEventListener("click",()=>{
+.addEventListener(
+"click",
+() => {
 
     document
-    .getElementById("startScreen")
+    .getElementById("overlay")
     .remove();
-
-    startTime = now();
 
     placeTarget();
 });

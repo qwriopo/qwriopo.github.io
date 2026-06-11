@@ -35,10 +35,8 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwzzlRpzbxMC4XAd0zHo
 const TARGET_COUNT = 20;
 let clicks = 0, lastTargetTime = 0, totalDistance = 0;
 let reactionTimes = [], speedSamples = [], prevMouse = null;
-
-// ✅ 추가: 원시 이벤트 저장 배열
-let mouseEvents = [];   // { x, y, t } — mousemove
-let clickEvents = [];   // { x, y, t } — 클릭 순간
+let mouseEvents = [];
+let clickEvents = [];
 
 const userId = crypto.randomUUID(), sessionId = crypto.randomUUID();
 
@@ -51,7 +49,6 @@ document.addEventListener("mousemove", e => {
     }
     prevMouse = { x:e.clientX, y:e.clientY, t:now };
 
-    // ✅ 추가: 원시 좌표 기록 (용량 절약 위해 5ms 이상 간격만)
     const last = mouseEvents[mouseEvents.length - 1];
     if(!last || now - last.t >= 5) {
         mouseEvents.push({ x: e.clientX, y: e.clientY, t: Math.round(now) });
@@ -68,10 +65,7 @@ function placeTarget(){
 target.addEventListener("click", e => {
     const now = performance.now();
     reactionTimes.push(now - lastTargetTime);
-
-    // ✅ 추가: 클릭 좌표 및 타이밍 기록
     clickEvents.push({ x: e.clientX, y: e.clientY, t: Math.round(now) });
-
     clicks++;
     if(clicks >= TARGET_COUNT) finishTest();
     else placeTarget();
@@ -81,37 +75,32 @@ async function finishTest(){
     target.style.display = "none";
     finishScreen.style.display = "flex";
 
-    // 기존 요약 통계
     const avgReactionTime = Math.round(reactionTimes.reduce((a,b)=>a+b,0)/reactionTimes.length);
     const avgSpeed = Number((speedSamples.reduce((a,b)=>a+b,0)/speedSamples.length).toFixed(4));
-
-    // ✅ 추가: 속도 분산
-    const meanSpd = avgSpeed;
-    const speedVariance = Number((speedSamples.reduce((a,b)=>a+(b-meanSpd)**2,0)/speedSamples.length).toFixed(6));
-
-    // ✅ 추가: 클릭 간격 분산
+    const speedVariance = Number((speedSamples.reduce((a,b)=>a+(b-avgSpeed)**2,0)/speedSamples.length).toFixed(6));
     const intervals = clickEvents.slice(1).map((c,i) => c.t - clickEvents[i].t);
     const meanInterval = intervals.reduce((a,b)=>a+b,0)/intervals.length;
     const intervalVariance = Number((intervals.reduce((a,b)=>a+(b-meanInterval)**2,0)/intervals.length).toFixed(2));
 
-    const payload = {
-        userId,
-        sessionId,
-        targetCount: TARGET_COUNT,
-        avgReactionTime,
-        avgSpeed,
-        totalDistance: Math.round(totalDistance),
-        // ✅ 추가된 통계값
-        speedVariance,
-        intervalVariance,
-        // ✅ 원시 데이터 (JSON 문자열로 직렬화)
-        mouseEvents: JSON.stringify(mouseEvents),
-        clickEvents: JSON.stringify(clickEvents)
-    };
-
     try {
-        const params = new URLSearchParams(payload);
-        await fetch(SCRIPT_URL + "?" + params.toString(), { method: 'GET', mode: 'no-cors' });
+        // ✅ GET → POST로 변경, body에 JSON으로 전송
+        await fetch(SCRIPT_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({
+                userId,
+                sessionId,
+                targetCount: TARGET_COUNT,
+                avgReactionTime,
+                avgSpeed,
+                totalDistance: Math.round(totalDistance),
+                speedVariance,
+                intervalVariance,
+                mouseEvents,   // 배열 그대로 (JSON.stringify 불필요)
+                clickEvents
+            })
+        });
         finishText.innerHTML = "✅ 데이터 제출 완료<br><br>참여해주셔서 감사합니다.";
     } catch(err) {
         finishText.innerHTML = "❌ 전송 실패<br><br>F12 콘솔을 확인하세요.";

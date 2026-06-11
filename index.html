@@ -50,7 +50,7 @@ document.addEventListener("mousemove", e => {
     prevMouse = { x:e.clientX, y:e.clientY, t:now };
 
     const last = mouseEvents[mouseEvents.length - 1];
-    if(!last || now - last.t >= 5) {
+    if(!last || now - last.t >= 25) {
         mouseEvents.push({ x: e.clientX, y: e.clientY, t: Math.round(now) });
     }
 });

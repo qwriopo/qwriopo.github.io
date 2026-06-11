@@ -16,7 +16,6 @@
     </style>
 </head>
 <body>
-
 <div id="startScreen">
     <div class="card">
         <h1>🖱️ 마우스 행동 연구</h1>
@@ -24,23 +23,23 @@
         <button id="startBtn">실험 시작</button>
     </div>
 </div>
-
 <div id="target"></div>
-
 <div id="finishScreen">
     <div class="card">
         <h1>📤 제출 중...</h1>
         <p id="finishText">데이터를 서버로 전송하고 있습니다.</p>
     </div>
 </div>
-
 <script>
-// [중요] 여기 URL을 방금 배포하신 URL로 바꾸세요!
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwzzlRpzbxMC4XAd0zHoNueq-oRjx6raQ49PILvdhvlKgA8d2jHx8480CATMAyKsE08lw/exec";
-
 const TARGET_COUNT = 20;
 let clicks = 0, lastTargetTime = 0, totalDistance = 0;
 let reactionTimes = [], speedSamples = [], prevMouse = null;
+
+// ✅ 추가: 원시 이벤트 저장 배열
+let mouseEvents = [];   // { x, y, t } — mousemove
+let clickEvents = [];   // { x, y, t } — 클릭 순간
+
 const userId = crypto.randomUUID(), sessionId = crypto.randomUUID();
 
 document.addEventListener("mousemove", e => {
@@ -51,6 +50,12 @@ document.addEventListener("mousemove", e => {
         if(dt > 0) { totalDistance += dist; speedSamples.push(dist/dt); }
     }
     prevMouse = { x:e.clientX, y:e.clientY, t:now };
+
+    // ✅ 추가: 원시 좌표 기록 (용량 절약 위해 5ms 이상 간격만)
+    const last = mouseEvents[mouseEvents.length - 1];
+    if(!last || now - last.t >= 5) {
+        mouseEvents.push({ x: e.clientX, y: e.clientY, t: Math.round(now) });
+    }
 });
 
 function placeTarget(){
@@ -60,8 +65,13 @@ function placeTarget(){
     lastTargetTime = performance.now();
 }
 
-target.addEventListener("click", () => {
-    reactionTimes.push(performance.now() - lastTargetTime);
+target.addEventListener("click", e => {
+    const now = performance.now();
+    reactionTimes.push(now - lastTargetTime);
+
+    // ✅ 추가: 클릭 좌표 및 타이밍 기록
+    clickEvents.push({ x: e.clientX, y: e.clientY, t: Math.round(now) });
+
     clicks++;
     if(clicks >= TARGET_COUNT) finishTest();
     else placeTarget();
@@ -71,16 +81,36 @@ async function finishTest(){
     target.style.display = "none";
     finishScreen.style.display = "flex";
 
+    // 기존 요약 통계
+    const avgReactionTime = Math.round(reactionTimes.reduce((a,b)=>a+b,0)/reactionTimes.length);
+    const avgSpeed = Number((speedSamples.reduce((a,b)=>a+b,0)/speedSamples.length).toFixed(4));
+
+    // ✅ 추가: 속도 분산
+    const meanSpd = avgSpeed;
+    const speedVariance = Number((speedSamples.reduce((a,b)=>a+(b-meanSpd)**2,0)/speedSamples.length).toFixed(6));
+
+    // ✅ 추가: 클릭 간격 분산
+    const intervals = clickEvents.slice(1).map((c,i) => c.t - clickEvents[i].t);
+    const meanInterval = intervals.reduce((a,b)=>a+b,0)/intervals.length;
+    const intervalVariance = Number((intervals.reduce((a,b)=>a+(b-meanInterval)**2,0)/intervals.length).toFixed(2));
+
     const payload = {
-        userId, sessionId, targetCount: TARGET_COUNT,
-        avgReactionTime: Math.round(reactionTimes.reduce((a,b)=>a+b,0)/reactionTimes.length),
-        avgSpeed: Number((speedSamples.reduce((a,b)=>a+b,0)/speedSamples.length).toFixed(4)),
-        totalDistance: Math.round(totalDistance)
+        userId,
+        sessionId,
+        targetCount: TARGET_COUNT,
+        avgReactionTime,
+        avgSpeed,
+        totalDistance: Math.round(totalDistance),
+        // ✅ 추가된 통계값
+        speedVariance,
+        intervalVariance,
+        // ✅ 원시 데이터 (JSON 문자열로 직렬화)
+        mouseEvents: JSON.stringify(mouseEvents),
+        clickEvents: JSON.stringify(clickEvents)
     };
 
     try {
         const params = new URLSearchParams(payload);
-        // CORS 문제 해결을 위해 no-cors 모드 사용
         await fetch(SCRIPT_URL + "?" + params.toString(), { method: 'GET', mode: 'no-cors' });
         finishText.innerHTML = "✅ 데이터 제출 완료<br><br>참여해주셔서 감사합니다.";
     } catch(err) {

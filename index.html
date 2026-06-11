@@ -406,16 +406,14 @@ async function finishTest(){
 
     target.style.display="none";
 
-    finishScreen.style.display=
-        "flex";
+    finishScreen.style.display="flex";
 
     const payload = {
 
         userId,
         sessionId,
 
-        targetCount:
-            TARGET_COUNT,
+        targetCount: TARGET_COUNT,
 
         avgReactionTime:
             Math.round(
@@ -436,20 +434,14 @@ async function finishTest(){
 
     try{
 
+        const params =
+            new URLSearchParams(payload);
+
         const response =
             await fetch(
-                SCRIPT_URL,
-                {
-                    method:"POST",
-                    headers:{
-                        "Content-Type":
-                        "application/json"
-                    },
-                    body:
-                    JSON.stringify(
-                        payload
-                    )
-                }
+                SCRIPT_URL +
+                "?" +
+                params.toString()
             );
 
         const text =
@@ -465,7 +457,7 @@ async function finishTest(){
         console.error(err);
 
         finishText.innerHTML =
-            "❌ 전송 실패<br><br>F12 → Console의 오류 메시지를 개발자에게 전달해주세요.";
+            "❌ 전송 실패<br><br>F12 → Console 오류를 확인해주세요.";
     }
 }
 
